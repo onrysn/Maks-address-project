@@ -1,0 +1,248 @@
+﻿<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MAKS Reverse Geocoding UI</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <style>
+    :root {
+      --bg: #f5f8f6;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --accent: #0f766e;
+      --accent-soft: #ccfbf1;
+      --border: #d1d5db;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Arial", sans-serif;
+      color: var(--ink);
+      background: radial-gradient(circle at top right, #d1fae5 0%, var(--bg) 35%);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      min-height: 100vh;
+    }
+
+    .panel {
+      padding: 20px;
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 22px;
+    }
+
+    p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    input, select, button {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 0.08s ease;
+      margin-top: 4px;
+    }
+
+    button:hover { transform: translateY(-1px); }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .result {
+      margin-top: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: #f9fafb;
+      font-size: 13px;
+      white-space: pre-wrap;
+      min-height: 80px;
+    }
+
+    #map {
+      width: 100%;
+      height: 100vh;
+    }
+
+    .chip {
+      display: inline-block;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; }
+      .panel { border-right: none; border-bottom: 1px solid var(--border); }
+      #map { height: 60vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="panel">
+      <div class="chip">MAKS UI</div>
+      <h1>Reverse Geocoding Test</h1>
+      <p>Koordinat girerek sorgula veya haritaya tıkla.</p>
+
+      <div class="grid">
+        <div>
+          <label for="lat">Enlem (Y)</label>
+          <input id="lat" type="number" step="any" value="37.8715" />
+        </div>
+        <div>
+          <label for="lon">Boylam (X)</label>
+          <input id="lon" type="number" step="any" value="32.4846" />
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label for="doorRadius">Kapı Radius (m)</label>
+          <input id="doorRadius" type="number" step="1" value="15" />
+        </div>
+        <div>
+          <label for="buildingRadius">Bina Radius (m)</label>
+          <input id="buildingRadius" type="number" step="1" value="40" />
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label for="roadRadius">Yol Radius (m)</label>
+          <input id="roadRadius" type="number" step="1" value="90" />
+        </div>
+        <div>
+          <label for="metric">Metric</label>
+          <select id="metric">
+            <option value="geodesic" selected>geodesic</option>
+            <option value="planar">planar</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="queryBtn">Sorgula</button>
+      <div class="hint">Haritaya tıklarsan koordinatlar otomatik dolar ve sorgu çalışır.</div>
+
+      <div id="result" class="result">Sonuç burada görünecek.</div>
+    </div>
+
+    <div id="map"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const map = L.map('map').setView([37.8715, 32.4846], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let marker = L.marker([37.8715, 32.4846]).addTo(map);
+
+    const latEl = document.getElementById('lat');
+    const lonEl = document.getElementById('lon');
+    const doorRadiusEl = document.getElementById('doorRadius');
+    const buildingRadiusEl = document.getElementById('buildingRadius');
+    const roadRadiusEl = document.getElementById('roadRadius');
+    const metricEl = document.getElementById('metric');
+    const resultEl = document.getElementById('result');
+    const queryBtn = document.getElementById('queryBtn');
+
+    function setMarker(lat, lon) {
+      marker.setLatLng([lat, lon]);
+      map.panTo([lat, lon]);
+    }
+
+    async function queryReverseGeocode() {
+      const lat = Number(latEl.value);
+      const lon = Number(lonEl.value);
+      const doorRadius = Number(doorRadiusEl.value);
+      const buildingRadius = Number(buildingRadiusEl.value);
+      const roadRadius = Number(roadRadiusEl.value);
+      const metric = metricEl.value;
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        resultEl.textContent = 'Geçerli koordinat gir.';
+        return;
+      }
+
+      setMarker(lat, lon);
+      resultEl.textContent = 'Sorgulanıyor...';
+
+      const qs = new URLSearchParams({
+        lat: String(lat),
+        lon: String(lon),
+        door_radius_m: String(doorRadius),
+        building_radius_m: String(buildingRadius),
+        road_radius_m: String(roadRadius),
+        metric,
+      });
+
+      try {
+        const res = await fetch(`/reverse-geocode?${qs.toString()}`);
+        const data = await res.json();
+        if (!res.ok) {
+          resultEl.textContent = `Hata (${res.status}):\n${JSON.stringify(data, null, 2)}`;
+          return;
+        }
+        resultEl.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        resultEl.textContent = `İstek hatası: ${err}`;
+      }
+    }
+
+    map.on('click', (e) => {
+      const { lat, lng } = e.latlng;
+      latEl.value = lat.toFixed(6);
+      lonEl.value = lng.toFixed(6);
+      queryReverseGeocode();
+    });
+
+    queryBtn.addEventListener('click', queryReverseGeocode);
+  </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+﻿{
+  "preset": "konya_maks_v1",
+  "raw_schema": "raw_maks",
+  "clear_core_tables": true,
+  "konya": {
+    "building_no_col": "ad"
+  }
+}
