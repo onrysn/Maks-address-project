@@ -183,7 +183,8 @@ def reverse_geocode(
 
     il, ilce, mahalle, kapi_no, bina_no, en_yakin_cadde_sokak, yapinin_bagli_oldugu_cadde_sokak, d_d, b_d, r_d, source_level = row
 
-    parts = [p for p in [mahalle, en_yakin_cadde_sokak, bina_no, ilce, il] if p]
+    cadde_for_adres = yapinin_bagli_oldugu_cadde_sokak or en_yakin_cadde_sokak
+    parts = [p for p in [mahalle, cadde_for_adres, bina_no, ilce, il] if p]
     adres = ", ".join(parts) if parts else None
 
     confidence = 0.2
