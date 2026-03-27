@@ -35,6 +35,7 @@ def reverse_geocode(
     metric: Literal["geodesic", "planar"] = Query("geodesic"),
 ) -> dict:
     pt_expr = "ST_SetSRID(ST_MakePoint(%s, %s), 4326)"
+    norm_tpl = "UPPER(REGEXP_REPLACE(BTRIM(CAST({expr} AS text)), '\\.0+$', ''))"
 
     if metric == "geodesic":
         dist = "ST_Distance(p.geom::geography, {geom}::geography)"
@@ -51,80 +52,119 @@ def reverse_geocode(
                 ),
                 admin AS (
                   SELECT
-                    c.city_name AS il,
-                    d.district_name AS ilce,
-                    n.neighborhood_name AS mahalle
+                    i.ad AS il,
+                    d.ad AS ilce,
+                    m.ad AS mahalle
                   FROM p
-                  LEFT JOIN admin_neighborhood n ON ST_Contains(n.geom, p.geom)
-                  LEFT JOIN admin_district d ON d.id = n.district_id
-                  LEFT JOIN admin_city c ON c.id = d.city_id
+                  LEFT JOIN raw_maks.mahalle m ON ST_Contains(m.geom, p.geom)
+                  LEFT JOIN raw_maks.ilce d
+                    ON {norm_m_district} = {norm_d_id}
+                  LEFT JOIN raw_maks.il i
+                    ON {norm_d_city} = {norm_i_id}
                   LIMIT 1
                 ),
                 nearest_door AS (
                   SELECT
-                    dr.id,
-                    dr.external_no,
-                    dr.building_id,
+                    nm.id AS door_id,
+                    nm.kapino AS kapi_no,
+                    nm.yapiid AS yapi_id,
                     {door_dist} AS dist_m
-                  FROM doors dr, p
+                  FROM raw_maks.numarataj nm, p
                   WHERE {door_within}
-                  ORDER BY dr.geom <-> p.geom
+                  ORDER BY nm.geom <-> p.geom
                   LIMIT 1
                 ),
-                nearest_building AS (
+                nearest_yapi AS (
                   SELECT
-                    b.id,
-                    b.building_no,
-                    b.road_id,
+                    y.id AS yapi_id,
+                    y.ad AS bina_no,
                     {building_dist} AS dist_m
-                  FROM buildings b, p
+                  FROM raw_maks.yapi y, p
                   WHERE {building_within}
-                  ORDER BY b.geom <-> p.geom
+                  ORDER BY y.geom <-> p.geom
+                  LIMIT 1
+                ),
+                selected_yapi AS (
+                  SELECT
+                    COALESCE(nd.yapi_id, ny.yapi_id) AS yapi_id,
+                    ny.bina_no,
+                    ny.dist_m AS yapi_dist_m
+                  FROM nearest_door nd
+                  FULL OUTER JOIN nearest_yapi ny ON TRUE
+                  LIMIT 1
+                ),
+                yapi_road AS (
+                  SELECT
+                    yol.ad AS road_name,
+                    COUNT(*) AS cnt
+                  FROM selected_yapi sy
+                  JOIN raw_maks.numarataj nm
+                    ON {norm_nm_yapi} = {norm_sy_yapi}
+                  JOIN raw_maks.yolortahatyon yhy
+                    ON {norm_yhy_id} = {norm_nm_yhy}
+                  JOIN raw_maks.yolortahat yoh
+                    ON {norm_yoh_id} = {norm_yhy_yoh}
+                  JOIN raw_maks.yol yol
+                    ON {norm_yol_id} = {norm_yoh_yol}
+                  GROUP BY yol.ad
+                  ORDER BY COUNT(*) DESC, yol.ad
                   LIMIT 1
                 ),
                 nearest_road AS (
                   SELECT
-                    r.id,
-                    r.road_name,
+                    yol.ad AS road_name,
                     {road_dist} AS dist_m
-                  FROM roads r, p
+                  FROM raw_maks.yolortahat yoh
+                  CROSS JOIN p
+                  LEFT JOIN raw_maks.yol yol
+                    ON {norm_yol_id} = {norm_yoh_yol}
                   WHERE {road_within}
-                  ORDER BY r.geom <-> p.geom
+                  ORDER BY yoh.geom <-> p.geom
                   LIMIT 1
                 )
                 SELECT
                   a.il,
                   a.ilce,
                   a.mahalle,
-                  nd.external_no AS kapi_no,
-                  nb.building_no AS bina_no,
-                  COALESCE(r1.road_name, r2.road_name, nr.road_name) AS cadde,
-                  r2.road_name AS binadan_gelen_cadde_sokak,
+                  nd.kapi_no,
+                  sy.bina_no,
+                  nr.road_name AS en_yakin_cadde_sokak,
+                  yr.road_name AS yapinin_bagli_oldugu_cadde_sokak,
                   nd.dist_m AS door_dist_m,
-                  nb.dist_m AS building_dist_m,
+                  sy.yapi_dist_m AS building_dist_m,
                   nr.dist_m AS road_dist_m,
                   CASE
-                    WHEN nd.id IS NOT NULL THEN 'door'
-                    WHEN nb.id IS NOT NULL THEN 'building'
-                    WHEN nr.id IS NOT NULL THEN 'road'
+                    WHEN nd.door_id IS NOT NULL THEN 'door'
+                    WHEN sy.yapi_id IS NOT NULL THEN 'building'
+                    WHEN nr.road_name IS NOT NULL THEN 'road'
                     ELSE 'none'
                   END AS source_level
                 FROM admin a
                 LEFT JOIN nearest_door nd ON TRUE
-                LEFT JOIN buildings b1 ON b1.id = nd.building_id
-                LEFT JOIN roads r1 ON r1.id = b1.road_id
-                LEFT JOIN nearest_building nb ON TRUE
-                LEFT JOIN roads r2 ON r2.id = nb.road_id
+                LEFT JOIN selected_yapi sy ON TRUE
+                LEFT JOIN yapi_road yr ON TRUE
                 LEFT JOIN nearest_road nr ON TRUE
                 LIMIT 1
                 """.format(
                 pt_expr=pt_expr,
-                door_dist=dist.format(geom="dr.geom"),
-                door_within=within.format(geom="dr.geom"),
-                building_dist=dist.format(geom="b.geom"),
-                building_within=within.format(geom="b.geom"),
-                road_dist=dist.format(geom="r.geom"),
-                road_within=within.format(geom="r.geom"),
+                norm_m_district=norm_tpl.format(expr="m.ilceid"),
+                norm_d_id=norm_tpl.format(expr="d.id"),
+                norm_d_city=norm_tpl.format(expr="d.ilid"),
+                norm_i_id=norm_tpl.format(expr="i.id"),
+                norm_nm_yapi=norm_tpl.format(expr="nm.yapiid"),
+                norm_sy_yapi=norm_tpl.format(expr="sy.yapi_id"),
+                norm_nm_yhy=norm_tpl.format(expr="nm.yolortahatyonid"),
+                norm_yhy_id=norm_tpl.format(expr="yhy.id"),
+                norm_yhy_yoh=norm_tpl.format(expr="yhy.yolortahatid"),
+                norm_yoh_id=norm_tpl.format(expr="yoh.id"),
+                norm_yoh_yol=norm_tpl.format(expr="yoh.yolid"),
+                norm_yol_id=norm_tpl.format(expr="yol.id"),
+                door_dist=dist.format(geom="nm.geom"),
+                door_within=within.format(geom="nm.geom"),
+                building_dist=dist.format(geom="y.geom"),
+                building_within=within.format(geom="y.geom"),
+                road_dist=dist.format(geom="yoh.geom"),
+                road_within=within.format(geom="yoh.geom"),
             )
             cur.execute(
                 query,
@@ -141,9 +181,9 @@ def reverse_geocode(
             if not row:
                 raise HTTPException(status_code=404, detail="Adres bulunamadi")
 
-    il, ilce, mahalle, kapi_no, bina_no, cadde, bina_cadde, d_d, b_d, r_d, source_level = row
+    il, ilce, mahalle, kapi_no, bina_no, en_yakin_cadde_sokak, yapinin_bagli_oldugu_cadde_sokak, d_d, b_d, r_d, source_level = row
 
-    parts = [p for p in [mahalle, cadde, bina_no, ilce, il] if p]
+    parts = [p for p in [mahalle, en_yakin_cadde_sokak, bina_no, ilce, il] if p]
     adres = ", ".join(parts) if parts else None
 
     confidence = 0.2
@@ -158,8 +198,8 @@ def reverse_geocode(
         "il": il,
         "ilce": ilce,
         "mahalle": mahalle,
-        "cadde": cadde,
-        "binadan_gelen_cadde_sokak": bina_cadde,
+        "En yakın Cadde/Sokak": en_yakin_cadde_sokak,
+        "Yapının bağlı olduğu Cadde/Sokak": yapinin_bagli_oldugu_cadde_sokak,
         "bina_no": bina_no,
         "kapi_no": kapi_no,
         "adres": adres,
