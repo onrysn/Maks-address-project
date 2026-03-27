@@ -99,6 +99,7 @@ def reverse_geocode(
                   nd.external_no AS kapi_no,
                   nb.building_no AS bina_no,
                   COALESCE(r1.road_name, r2.road_name, nr.road_name) AS cadde,
+                  r2.road_name AS binadan_gelen_cadde_sokak,
                   nd.dist_m AS door_dist_m,
                   nb.dist_m AS building_dist_m,
                   nr.dist_m AS road_dist_m,
@@ -140,7 +141,7 @@ def reverse_geocode(
             if not row:
                 raise HTTPException(status_code=404, detail="Adres bulunamadi")
 
-    il, ilce, mahalle, kapi_no, bina_no, cadde, d_d, b_d, r_d, source_level = row
+    il, ilce, mahalle, kapi_no, bina_no, cadde, bina_cadde, d_d, b_d, r_d, source_level = row
 
     parts = [p for p in [mahalle, cadde, bina_no, ilce, il] if p]
     adres = ", ".join(parts) if parts else None
@@ -158,6 +159,7 @@ def reverse_geocode(
         "ilce": ilce,
         "mahalle": mahalle,
         "cadde": cadde,
+        "binadan_gelen_cadde_sokak": bina_cadde,
         "bina_no": bina_no,
         "kapi_no": kapi_no,
         "adres": adres,
