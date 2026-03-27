@@ -4,7 +4,7 @@ Bu proje Docker ile calisan bir MAKS reverse geocoding iskeletidir:
 
 - `PostGIS` veritabani
 - `FastAPI` reverse geocode servisi
-- `ETL` container (GDB analiz + import + mapping)
+- `ETL` container (GDB analiz + raw import)
 
 ## 1) Servisleri baslat
 
@@ -28,7 +28,7 @@ Ornek: `data/raw_gdb/KONYA.gdb`
 Tek komut pipeline (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\etl\scripts\run_pipeline.ps1 -GdbName KONYA.gdb
+powershell -ExecutionPolicy Bypass -File .\etl\scripts\run_pipeline_safe.ps1 -GdbName KONYA.gdb
 ```
 
 Detayli adimlar icin: [etl/README.md](./etl/README.md)
@@ -50,7 +50,6 @@ Ornek:
 curl "http://localhost:8000/reverse-geocode?lat=37.8715&lon=32.4846&door_radius_m=12&building_radius_m=40&road_radius_m=90&metric=geodesic"
 ```
 
-
 ## 5) Basit UI
 
 Tarayicida su adrese git:
@@ -58,4 +57,3 @@ Tarayicida su adrese git:
 - http://localhost:8000/ui
 
 UI uzerinden koordinat girip reverse geocode sorgusu yapabilir, haritaya tiklayarak nokta secip sonucu gorebilirsin.
-

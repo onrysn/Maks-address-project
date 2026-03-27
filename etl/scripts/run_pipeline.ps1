@@ -1,6 +1,5 @@
 ﻿param(
     [string]$GdbName = "KONYA.gdb",
-    [string]$MappingFile = "etl/config/mapping.json",
     [double]$Lat = 37.8715,
     [double]$Lon = 32.4846,
     [double]$DoorRadiusM = 15,
@@ -9,8 +8,7 @@
     [ValidateSet("geodesic", "planar")]
     [string]$Metric = "geodesic",
     [switch]$SkipInspect,
-    [switch]$SkipImport,
-    [switch]$SkipMap
+    [switch]$SkipImport
 )
 
 $ErrorActionPreference = "Stop"
@@ -83,9 +81,6 @@ if (-not (Test-Path $localGdbPath)) {
 }
 
 $containerGdbPath = "/data/raw_gdb/$GdbName"
-$mappingFullPath = Join-Path $projectRoot $MappingFile
-$mappingExample = Join-Path $projectRoot "etl/config/mapping.konya.example.json"
-$mappingContainerPath = "/" + ($MappingFile -replace "\\", "/")
 
 Run-Step "Docker hazirlik kontrolu" {
     Assert-DockerReady
@@ -111,17 +106,6 @@ if (-not $SkipImport) {
     }
 }
 
-if (-not (Test-Path $mappingFullPath)) {
-    Copy-Item $mappingExample $mappingFullPath -Force
-    throw "Mapping dosyasi olusturuldu: $MappingFile. Bu dosyadaki tablo/kolon adlarini guncelleyip scripti tekrar calistir."
-}
-
-if (-not $SkipMap) {
-    Run-Step "raw_maks -> core mapping" {
-        Invoke-External -Command "docker compose run --rm etl -lc ""MAPPING_FILE=$mappingContainerPath python -u /etl/scripts/map_raw_to_core.py""" -FailMessage "mapping adimi basarisiz"
-    }
-}
-
 Run-Step "API health kontrolu" {
     $health = Wait-ApiHealth
     if ($health.status -ne "ok") { throw "API health ok donmedi" }
@@ -137,5 +121,3 @@ Run-Step "Reverse geocode smoke test" {
 }
 
 Write-Host "`nPipeline tamamlandi." -ForegroundColor Green
-
-
