@@ -31,6 +31,36 @@ Tek komut pipeline (PowerShell):
 powershell -ExecutionPolicy Bypass -File .\etl\scripts\run_pipeline_safe.ps1 -GdbName KONYA.gdb
 ```
 
+`data/raw_gdb` altindaki tum `.gdb` klasorlerini tek seferde almak icin:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\etl\scripts\run_pipeline_safe.ps1 -ImportAllGdbs
+```
+
+Yeni eklenen bir `.gdb` dosyasini mevcut raw verinin ustune eklemek (append) icin:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\etl\scripts\run_pipeline_safe.ps1 -GdbName YENI_IL.gdb -AppendImport -SkipInspect
+```
+
+Not: Import varsayilani `ImportMode=all` oldugu icin GDB icindeki tum katmanlar alinir.
+
+## 3.1) Tek Sefer Import, Sonra Sadece Servis Ac
+
+Veritabani `docker-compose.yml` icindeki `pgdata` volume ile kalicidir. Bu nedenle importu bir kere yaptiktan sonra her acilista tekrar import etmen gerekmez.
+
+Ilk kurulum (import dahil):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\etl\scripts\run_pipeline_safe.ps1 -ImportAllGdbs -SkipInspect
+```
+
+Sonraki acilislar (import yok):
+
+```bash
+docker compose up -d
+```
+
 Detayli adimlar icin: [etl/README.md](./etl/README.md)
 
 ## 4) Query bazli yakinlik parametreleri

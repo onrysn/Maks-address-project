@@ -1,5 +1,9 @@
 ﻿param(
     [string]$GdbName = "KONYA.gdb",
+    [switch]$ImportAllGdbs,
+    [switch]$AppendImport,
+    [ValidateSet("all", "core")]
+    [string]$ImportMode = "all",
     [double]$Lat = 37.8715,
     [double]$Lon = 32.4846,
     [double]$DoorRadiusM = 15,
@@ -75,12 +79,22 @@ function Wait-ApiHealth {
 $projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 Set-Location $projectRoot
 
-$localGdbPath = Join-Path $projectRoot ("data/raw_gdb/" + $GdbName)
-if (-not (Test-Path $localGdbPath)) {
-    throw "GDB bulunamadi: $localGdbPath"
+$gdbPaths = @()
+if ($ImportAllGdbs) {
+    $rawDir = Join-Path $projectRoot "data/raw_gdb"
+    $gdbDirs = Get-ChildItem -Path $rawDir -Directory -Filter "*.gdb" -ErrorAction SilentlyContinue
+    if (-not $gdbDirs -or $gdbDirs.Count -eq 0) {
+        throw "ImportAllGdbs acik ama data/raw_gdb altinda .gdb klasoru bulunamadi."
+    }
+    $gdbPaths = @($gdbDirs | ForEach-Object { $_.FullName })
 }
-
-$containerGdbPath = "/data/raw_gdb/$GdbName"
+else {
+    $localGdbPath = Join-Path $projectRoot ("data/raw_gdb/" + $GdbName)
+    if (-not (Test-Path $localGdbPath)) {
+        throw "GDB bulunamadi: $localGdbPath"
+    }
+    $gdbPaths = @($localGdbPath)
+}
 
 Run-Step "Docker hazirlik kontrolu" {
     Assert-DockerReady
@@ -93,13 +107,26 @@ Run-Step "Servisleri build + up" {
 
 if (-not $SkipInspect) {
     Run-Step "GDB katman analizi" {
-        Invoke-External -Command "docker compose run --rm etl -lc ""bash /etl/scripts/inspect_gdb.sh $containerGdbPath""" -FailMessage "inspect adimi basarisiz"
+        foreach ($gdbPath in $gdbPaths) {
+            $gdbNameLocal = Split-Path $gdbPath -Leaf
+            $containerGdbPath = "/data/raw_gdb/$gdbNameLocal"
+            Write-Host "Inspect: $gdbNameLocal" -ForegroundColor DarkCyan
+            Invoke-External -Command "docker compose run --rm etl -lc ""bash /etl/scripts/inspect_gdb.sh $containerGdbPath""" -FailMessage "inspect adimi basarisiz ($gdbNameLocal)"
+        }
     }
 }
 
 if (-not $SkipImport) {
     Run-Step "GDB -> raw_maks import" {
-        Invoke-External -Command "docker compose run --rm etl -lc ""bash /etl/scripts/import_gdb_to_raw.sh $containerGdbPath""" -FailMessage "import adimi basarisiz"
+        $isFirst = $true
+        foreach ($gdbPath in $gdbPaths) {
+            $gdbNameLocal = Split-Path $gdbPath -Leaf
+            $containerGdbPath = "/data/raw_gdb/$gdbNameLocal"
+            $importBehavior = if ($AppendImport -or (-not $isFirst)) { "append" } else { "overwrite" }
+            Write-Host "Import: $gdbNameLocal (mode=$ImportMode, behavior=$importBehavior)" -ForegroundColor DarkCyan
+            Invoke-External -Command "docker compose run --rm etl -lc ""IMPORT_MODE=$ImportMode IMPORT_BEHAVIOR=$importBehavior bash /etl/scripts/import_gdb_to_raw.sh $containerGdbPath""" -FailMessage "import adimi basarisiz ($gdbNameLocal)"
+            $isFirst = $false
+        }
     }
 
     Run-Step "Raw profil JSON olusturma" {

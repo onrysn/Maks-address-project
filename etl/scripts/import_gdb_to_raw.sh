@@ -8,8 +8,10 @@ fi
 
 GDB_PATH="$1"
 RAW_SCHEMA="raw_maks"
-# Set to "all" to import every layer, or keep default "core" for faster MAKS reverse geocode setup.
-IMPORT_MODE="${IMPORT_MODE:-core}"
+# Import all layers by default.
+IMPORT_MODE="${IMPORT_MODE:-all}"
+# Import behavior: overwrite (default) or append.
+IMPORT_BEHAVIOR="${IMPORT_BEHAVIOR:-overwrite}"
 
 : "${POSTGRES_HOST:?POSTGRES_HOST is required}"
 : "${POSTGRES_PORT:?POSTGRES_PORT is required}"
@@ -19,6 +21,11 @@ IMPORT_MODE="${IMPORT_MODE:-core}"
 
 if [[ ! -d "$GDB_PATH" ]]; then
   echo "GDB path not found: $GDB_PATH"
+  exit 1
+fi
+
+if [[ "$IMPORT_BEHAVIOR" != "overwrite" && "$IMPORT_BEHAVIOR" != "append" ]]; then
+  echo "Invalid IMPORT_BEHAVIOR: $IMPORT_BEHAVIOR (allowed: overwrite|append)"
   exit 1
 fi
 
@@ -74,6 +81,7 @@ if [[ ${#LAYERS[@]} -eq 0 ]]; then
 fi
 
 echo "Import mode: $IMPORT_MODE"
+echo "Import behavior: $IMPORT_BEHAVIOR"
 echo "Layers: ${LAYERS[*]}"
 
 for LAYER in "${LAYERS[@]}"; do
@@ -86,17 +94,26 @@ for LAYER in "${LAYERS[@]}"; do
 
   echo "Importing layer '$LAYER' -> ${RAW_SCHEMA}.${TABLE_NAME}"
 
-  ogr2ogr \
-    -f PostgreSQL \
-    "PG:host=${POSTGRES_HOST} port=${POSTGRES_PORT} dbname=${POSTGRES_DB} user=${POSTGRES_USER} password=${POSTGRES_PASSWORD} active_schema=${RAW_SCHEMA}" \
-    "$GDB_PATH" \
-    "$LAYER" \
-    -overwrite \
-    -nln "$TABLE_NAME" \
-    -lco GEOMETRY_NAME=geom \
-    -nlt PROMOTE_TO_MULTI \
-    -t_srs EPSG:4326 \
+  OGR_FLAGS=(
+    -f PostgreSQL
+    "PG:host=${POSTGRES_HOST} port=${POSTGRES_PORT} dbname=${POSTGRES_DB} user=${POSTGRES_USER} password=${POSTGRES_PASSWORD} active_schema=${RAW_SCHEMA}"
+    "$GDB_PATH"
+    "$LAYER"
+    -nln "$TABLE_NAME"
+    -lco GEOMETRY_NAME=geom
+    -nlt PROMOTE_TO_MULTI
+    -t_srs EPSG:4326
     -makevalid
+  )
+
+  if [[ "$IMPORT_BEHAVIOR" == "append" ]]; then
+    OGR_FLAGS+=(-append)
+  else
+    OGR_FLAGS+=(-overwrite)
+  fi
+
+  ogr2ogr \
+    "${OGR_FLAGS[@]}"
  done
 
 echo "Raw import complete."

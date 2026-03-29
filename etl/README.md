@@ -22,11 +22,17 @@ docker compose run --rm etl -lc "bash /etl/scripts/import_gdb_to_raw.sh /data/ra
 
 Yukleme hedefi: `raw_maks.*` tablolari
 
-Not: Varsayilan mod `IMPORT_MODE=core` oldugu icin yalnizca reverse geocoding icin gereken katmanlar alinir.
-Tum katmanlari almak icin:
+Not: Varsayilan mod `IMPORT_MODE=all` oldugu icin tum katmanlar alinir.
+Sadece temel katmanlari almak istersen:
 
 ```bash
-docker compose run --rm etl -lc "IMPORT_MODE=all bash /etl/scripts/import_gdb_to_raw.sh /data/raw_gdb/KONYA.gdb"
+docker compose run --rm etl -lc "IMPORT_MODE=core bash /etl/scripts/import_gdb_to_raw.sh /data/raw_gdb/KONYA.gdb"
+```
+
+Mevcut tablolari silmeden ekleme (append) yapmak icin:
+
+```bash
+docker compose run --rm etl -lc "IMPORT_BEHAVIOR=append bash /etl/scripts/import_gdb_to_raw.sh /data/raw_gdb/YENI_IL.gdb"
 ```
 
 ## 3) raw profilini JSON olarak cikar
@@ -49,6 +55,24 @@ Tum adimlari kontrollu sekilde calistirmak icin:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\etl\scripts\run_pipeline_safe.ps1 -GdbName KONYA.gdb
+```
+
+`data/raw_gdb` altindaki tum `.gdb` klasorlerini tek seferde import etmek icin:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\etl\scripts\run_pipeline_safe.ps1 -ImportAllGdbs
+```
+
+Yeni gelen bir `.gdb` dosyasini mevcut veriye eklemek icin:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\etl\scripts\run_pipeline_safe.ps1 -GdbName YENI_IL.gdb -AppendImport -SkipInspect
+```
+
+Import modunu pipeline seviyesinde secmek icin:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\etl\scripts\run_pipeline_safe.ps1 -ImportAllGdbs -ImportMode all
 ```
 
 Ikinci calistirmada hizli gitmek icin:

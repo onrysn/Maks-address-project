@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
@@ -52,15 +52,37 @@ def reverse_geocode(
                 ),
                 admin AS (
                   SELECT
-                    i.ad AS il,
-                    d.ad AS ilce,
-                    m.ad AS mahalle
+                    il_hit.ad AS il,
+                    ilce_hit.ad AS ilce,
+                    settlement_hit.ad AS mahalle
                   FROM p
-                  LEFT JOIN raw_maks.mahalle m ON ST_Contains(m.geom, p.geom)
-                  LEFT JOIN raw_maks.ilce d
-                    ON {norm_m_district} = {norm_d_id}
-                  LEFT JOIN raw_maks.il i
-                    ON {norm_d_city} = {norm_i_id}
+                  LEFT JOIN LATERAL (
+                    SELECT i.ad
+                    FROM raw_maks.il i
+                    ORDER BY ST_Covers(i.geom, p.geom) DESC, i.geom <-> p.geom
+                    LIMIT 1
+                  ) il_hit ON TRUE
+                  LEFT JOIN LATERAL (
+                    SELECT d.ad
+                    FROM raw_maks.ilce d
+                    ORDER BY ST_Covers(d.geom, p.geom) DESC, d.geom <-> p.geom
+                    LIMIT 1
+                  ) ilce_hit ON TRUE
+                  LEFT JOIN LATERAL (
+                    SELECT s.ad
+                    FROM (
+                      SELECT m.ad, m.geom, 1 AS pri, ST_Covers(m.geom, p.geom) AS covered
+                      FROM raw_maks.mahalle m
+                      UNION ALL
+                      SELECT k.ad, k.geom, 2 AS pri, ST_Covers(k.geom, p.geom) AS covered
+                      FROM raw_maks.koy k
+                    ) s
+                    ORDER BY
+                      s.covered DESC,
+                      CASE WHEN s.covered THEN s.pri ELSE 999 END,
+                      s.geom <-> p.geom
+                    LIMIT 1
+                  ) settlement_hit ON TRUE
                   LIMIT 1
                 ),
                 nearest_door AS (
@@ -147,10 +169,6 @@ def reverse_geocode(
                 LIMIT 1
                 """.format(
                 pt_expr=pt_expr,
-                norm_m_district=norm_tpl.format(expr="m.ilceid"),
-                norm_d_id=norm_tpl.format(expr="d.id"),
-                norm_d_city=norm_tpl.format(expr="d.ilid"),
-                norm_i_id=norm_tpl.format(expr="i.id"),
                 norm_nm_yapi=norm_tpl.format(expr="nm.yapiid"),
                 norm_sy_yapi=norm_tpl.format(expr="sy.yapi_id"),
                 norm_nm_yhy=norm_tpl.format(expr="nm.yolortahatyonid"),
@@ -199,8 +217,8 @@ def reverse_geocode(
         "il": il,
         "ilce": ilce,
         "mahalle": mahalle,
-        "En yakın Cadde/Sokak": en_yakin_cadde_sokak,
-        "Yapının bağlı olduğu Cadde/Sokak": yapinin_bagli_oldugu_cadde_sokak,
+        "En yakin Cadde/Sokak": en_yakin_cadde_sokak,
+        "Yapinin bagli oldugu Cadde/Sokak": yapinin_bagli_oldugu_cadde_sokak,
         "bina_no": bina_no,
         "kapi_no": kapi_no,
         "adres": adres,
