@@ -16,6 +16,7 @@ API:
 
 - Health: `http://localhost:8000/health`
 - Reverse geocode: `http://localhost:8000/reverse-geocode?lat=37.87&lon=32.49`
+- Batch reverse geocode: `POST http://localhost:8000/reverse-geocode/batch`
 
 ## 2) MAKS verisini yerlestir
 
@@ -80,10 +81,24 @@ Ornek:
 curl "http://localhost:8000/reverse-geocode?lat=37.8715&lon=32.4846&door_radius_m=12&building_radius_m=40&road_radius_m=90&metric=geodesic"
 ```
 
+Toplu sorgu ornegi:
+
+```bash
+curl -X POST "http://localhost:8000/reverse-geocode/batch" \
+  -H "Content-Type: application/json" \
+  -d "{\"points\":[{\"id\":\"A1\",\"lat\":37.8715,\"lon\":32.4846},{\"id\":\"A2\",\"lat\":37.8700,\"lon\":32.4900}],\"door_radius_m\":50,\"building_radius_m\":50,\"road_radius_m\":90,\"metric\":\"geodesic\",\"parallel_workers\":4}"
+```
+
 ## 5) Basit UI
 
 Tarayicida su adrese git:
 
 - http://localhost:8000/ui
 
-UI uzerinden koordinat girip reverse geocode sorgusu yapabilir, haritaya tiklayarak nokta secip sonucu gorebilirsin.
+UI uzerinden:
+
+- Tekli sorgu
+- Toplu sorgu (id,lat,lon satirlari)
+- Haritadan tekli sorgu tetikleme veya toplu listeye nokta ekleme
+
+yapabilirsin.

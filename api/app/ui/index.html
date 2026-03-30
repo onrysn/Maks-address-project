@@ -14,6 +14,7 @@
       --accent: #0f766e;
       --accent-soft: #ccfbf1;
       --border: #d1d5db;
+      --warn: #b45309;
     }
 
     * { box-sizing: border-box; }
@@ -26,7 +27,7 @@
 
     .layout {
       display: grid;
-      grid-template-columns: 360px 1fr;
+      grid-template-columns: 420px 1fr;
       min-height: 100vh;
     }
 
@@ -34,6 +35,8 @@
       padding: 20px;
       border-right: 1px solid var(--border);
       background: var(--panel);
+      overflow-y: auto;
+      max-height: 100vh;
     }
 
     h1 {
@@ -54,6 +57,13 @@
       margin-bottom: 12px;
     }
 
+    .mode-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
     label {
       font-size: 12px;
       color: var(--muted);
@@ -61,12 +71,18 @@
       margin-bottom: 4px;
     }
 
-    input, select, button {
+    input, select, button, textarea {
       width: 100%;
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 10px 12px;
       font-size: 14px;
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+      font-family: Consolas, "Courier New", monospace;
     }
 
     button {
@@ -81,10 +97,31 @@
 
     button:hover { transform: translateY(-1px); }
 
+    .secondary {
+      background: #0b5e56;
+    }
+
+    .toggle-btn {
+      background: #e5e7eb;
+      color: #111827;
+      border: 1px solid var(--border);
+    }
+
+    .toggle-btn.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: #99f6e4;
+      font-weight: 700;
+    }
+
     .hint {
       font-size: 12px;
       color: var(--muted);
       margin-top: 8px;
+    }
+
+    .hint.warn {
+      color: var(--warn);
     }
 
     .result {
@@ -95,7 +132,8 @@
       background: #f9fafb;
       font-size: 13px;
       white-space: pre-wrap;
-      min-height: 80px;
+      min-height: 120px;
+      overflow-x: auto;
     }
 
     #map {
@@ -114,9 +152,11 @@
       font-weight: 700;
     }
 
+    .hidden { display: none; }
+
     @media (max-width: 960px) {
       .layout { grid-template-columns: 1fr; }
-      .panel { border-right: none; border-bottom: 1px solid var(--border); }
+      .panel { border-right: none; border-bottom: 1px solid var(--border); max-height: none; }
       #map { height: 60vh; }
     }
   </style>
@@ -125,23 +165,17 @@
   <div class="layout">
     <div class="panel">
       <div class="chip">MAKS UI</div>
-      <h1>Reverse Geocoding Test</h1>
-      <p>Koordinat girerek sorgula veya haritaya tıkla.</p>
+      <h1>Reverse Geocoding</h1>
+      <p>Tekli veya toplu sorgu yap. Harita tiklamasi secili moda gore calisir.</p>
 
-      <div class="grid">
-        <div>
-          <label for="lat">Enlem (Y)</label>
-          <input id="lat" type="number" step="any" value="37.8715" />
-        </div>
-        <div>
-          <label for="lon">Boylam (X)</label>
-          <input id="lon" type="number" step="any" value="32.4846" />
-        </div>
+      <div class="mode-grid">
+        <button id="singleModeBtn" class="toggle-btn active" type="button">Tekli</button>
+        <button id="batchModeBtn" class="toggle-btn" type="button">Toplu</button>
       </div>
 
       <div class="grid">
         <div>
-          <label for="doorRadius">Kapı Radius (m)</label>
+          <label for="doorRadius">Kapi Radius (m)</label>
           <input id="doorRadius" type="number" step="1" value="50" />
         </div>
         <div>
@@ -164,10 +198,42 @@
         </div>
       </div>
 
-      <button id="queryBtn">Sorgula</button>
-      <div class="hint">Haritaya tıklarsan koordinatlar otomatik dolar ve sorgu çalışır.</div>
+      <div id="singleSection">
+        <div class="grid">
+          <div>
+            <label for="lat">Enlem (Y)</label>
+            <input id="lat" type="number" step="any" value="37.8715" />
+          </div>
+          <div>
+            <label for="lon">Boylam (X)</label>
+            <input id="lon" type="number" step="any" value="32.4846" />
+          </div>
+        </div>
+        <button id="queryBtn" type="button">Tekli Sorgula</button>
+        <div class="hint">Haritaya tiklarsan koordinat dolup tekli sorgu calisir.</div>
+      </div>
 
-      <div id="result" class="result">Sonuç burada görünecek.</div>
+      <div id="batchSection" class="hidden">
+        <div class="grid">
+          <div>
+            <label for="workers">Paralel Worker</label>
+            <input id="workers" type="number" step="1" min="1" max="8" value="4" />
+          </div>
+          <div>
+            <label for="batchSample">Ornek Format</label>
+            <input id="batchSample" type="text" value="id,lat,lon" disabled />
+          </div>
+        </div>
+        <label for="batchPoints">Noktalar (satir satir: id,lat,lon veya lat,lon)</label>
+        <textarea id="batchPoints">A1,37.871500,32.484600
+A2,37.870000,32.490000</textarea>
+        <button id="batchQueryBtn" type="button">Toplu Sorgula</button>
+        <button id="clearBatchBtn" class="secondary" type="button">Toplu Listeyi Temizle</button>
+        <div class="hint">Toplu moddayken haritaya tiklarsan listeye yeni satir eklenir.</div>
+        <div class="hint warn">Toplu endpoint limiti: 2000 nokta/istek.</div>
+      </div>
+
+      <div id="result" class="result">Sonuc burada gorunecek.</div>
     </div>
 
     <div id="map"></div>
@@ -181,7 +247,13 @@
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    let marker = L.marker([37.8715, 32.4846]).addTo(map);
+    const singleMarker = L.marker([37.8715, 32.4846]).addTo(map);
+    const batchLayer = L.layerGroup().addTo(map);
+
+    const singleModeBtn = document.getElementById('singleModeBtn');
+    const batchModeBtn = document.getElementById('batchModeBtn');
+    const singleSection = document.getElementById('singleSection');
+    const batchSection = document.getElementById('batchSection');
 
     const latEl = document.getElementById('lat');
     const lonEl = document.getElementById('lon');
@@ -189,37 +261,108 @@
     const buildingRadiusEl = document.getElementById('buildingRadius');
     const roadRadiusEl = document.getElementById('roadRadius');
     const metricEl = document.getElementById('metric');
+    const workersEl = document.getElementById('workers');
+    const batchPointsEl = document.getElementById('batchPoints');
+
     const resultEl = document.getElementById('result');
     const queryBtn = document.getElementById('queryBtn');
+    const batchQueryBtn = document.getElementById('batchQueryBtn');
+    const clearBatchBtn = document.getElementById('clearBatchBtn');
 
-    function setMarker(lat, lon) {
-      marker.setLatLng([lat, lon]);
+    let mode = 'single';
+
+    function setMode(nextMode) {
+      mode = nextMode;
+      const isSingle = mode === 'single';
+      singleSection.classList.toggle('hidden', !isSingle);
+      batchSection.classList.toggle('hidden', isSingle);
+      singleModeBtn.classList.toggle('active', isSingle);
+      batchModeBtn.classList.toggle('active', !isSingle);
+      singleMarker.setOpacity(isSingle ? 1 : 0.4);
+    }
+
+    function baseParams() {
+      return {
+        door_radius_m: Number(doorRadiusEl.value),
+        building_radius_m: Number(buildingRadiusEl.value),
+        road_radius_m: Number(roadRadiusEl.value),
+        metric: metricEl.value,
+      };
+    }
+
+    function setSingleMarker(lat, lon) {
+      singleMarker.setLatLng([lat, lon]);
       map.panTo([lat, lon]);
     }
 
-    async function queryReverseGeocode() {
+    function parseBatchPoints(text) {
+      const lines = text
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+      const points = [];
+      for (let i = 0; i < lines.length; i += 1) {
+        const line = lines[i];
+        const parts = line.split(',').map((s) => s.trim());
+
+        if (parts.length === 2) {
+          const lat = Number(parts[0]);
+          const lon = Number(parts[1]);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+            throw new Error(`Satir ${i + 1} gecersiz: ${line}`);
+          }
+          points.push({ id: String(i + 1), lat, lon });
+        } else if (parts.length >= 3) {
+          const id = parts[0] || String(i + 1);
+          const lat = Number(parts[1]);
+          const lon = Number(parts[2]);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+            throw new Error(`Satir ${i + 1} gecersiz: ${line}`);
+          }
+          points.push({ id, lat, lon });
+        } else {
+          throw new Error(`Satir ${i + 1} gecersiz: ${line}`);
+        }
+      }
+
+      return points;
+    }
+
+    function paintBatchOnMap(items) {
+      batchLayer.clearLayers();
+      for (const item of items) {
+        const marker = L.circleMarker([item.lat, item.lon], {
+          radius: 5,
+          color: item.ok ? '#0f766e' : '#b91c1c',
+          fillOpacity: 0.8,
+        });
+        const text = item.ok ? (item.result?.adres || 'Sonuc var') : (item.error || 'Hata');
+        marker.bindPopup(`<b>${item.id || '-'}</b><br/>${text}`);
+        marker.addTo(batchLayer);
+      }
+    }
+
+    async function querySingle() {
       const lat = Number(latEl.value);
       const lon = Number(lonEl.value);
-      const doorRadius = Number(doorRadiusEl.value);
-      const buildingRadius = Number(buildingRadiusEl.value);
-      const roadRadius = Number(roadRadiusEl.value);
-      const metric = metricEl.value;
 
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        resultEl.textContent = 'Geçerli koordinat gir.';
+        resultEl.textContent = 'Gecerli koordinat gir.';
         return;
       }
 
-      setMarker(lat, lon);
-      resultEl.textContent = 'Sorgulanıyor...';
+      const params = baseParams();
+      setSingleMarker(lat, lon);
+      resultEl.textContent = 'Sorgulaniyor...';
 
       const qs = new URLSearchParams({
         lat: String(lat),
         lon: String(lon),
-        door_radius_m: String(doorRadius),
-        building_radius_m: String(buildingRadius),
-        road_radius_m: String(roadRadius),
-        metric,
+        door_radius_m: String(params.door_radius_m),
+        building_radius_m: String(params.building_radius_m),
+        road_radius_m: String(params.road_radius_m),
+        metric: params.metric,
       });
 
       try {
@@ -231,18 +374,74 @@
         }
         resultEl.textContent = JSON.stringify(data, null, 2);
       } catch (err) {
-        resultEl.textContent = `İstek hatası: ${err}`;
+        resultEl.textContent = `Istek hatasi: ${err}`;
+      }
+    }
+
+    async function queryBatch() {
+      let points;
+      try {
+        points = parseBatchPoints(batchPointsEl.value);
+      } catch (err) {
+        resultEl.textContent = `Parse hatasi: ${err.message}`;
+        return;
+      }
+
+      const params = baseParams();
+      const workers = Number(workersEl.value) || 1;
+
+      resultEl.textContent = `Toplu sorgu basladi... (${points.length} nokta)`;
+
+      const body = {
+        points,
+        door_radius_m: params.door_radius_m,
+        building_radius_m: params.building_radius_m,
+        road_radius_m: params.road_radius_m,
+        metric: params.metric,
+        parallel_workers: Math.max(1, Math.min(8, workers)),
+      };
+
+      try {
+        const res = await fetch('/reverse-geocode/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          resultEl.textContent = `Hata (${res.status}):\n${JSON.stringify(data, null, 2)}`;
+          return;
+        }
+
+        paintBatchOnMap(data.items || []);
+        resultEl.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        resultEl.textContent = `Istek hatasi: ${err}`;
       }
     }
 
     map.on('click', (e) => {
       const { lat, lng } = e.latlng;
-      latEl.value = lat.toFixed(6);
-      lonEl.value = lng.toFixed(6);
-      queryReverseGeocode();
+      if (mode === 'single') {
+        latEl.value = lat.toFixed(6);
+        lonEl.value = lng.toFixed(6);
+        querySingle();
+      } else {
+        const nextIndex = batchPointsEl.value.split(/\r?\n/).filter((s) => s.trim()).length + 1;
+        const line = `P${nextIndex},${lat.toFixed(6)},${lng.toFixed(6)}`;
+        batchPointsEl.value = batchPointsEl.value.trim() ? `${batchPointsEl.value}\n${line}` : line;
+      }
     });
 
-    queryBtn.addEventListener('click', queryReverseGeocode);
+    singleModeBtn.addEventListener('click', () => setMode('single'));
+    batchModeBtn.addEventListener('click', () => setMode('batch'));
+    queryBtn.addEventListener('click', querySingle);
+    batchQueryBtn.addEventListener('click', queryBatch);
+    clearBatchBtn.addEventListener('click', () => {
+      batchPointsEl.value = '';
+      batchLayer.clearLayers();
+    });
   </script>
 </body>
 </html>
