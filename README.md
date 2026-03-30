@@ -17,6 +17,10 @@ API:
 - Health: `http://localhost:8000/health`
 - Reverse geocode: `http://localhost:8000/reverse-geocode?lat=37.87&lon=32.49`
 - Batch reverse geocode: `POST http://localhost:8000/reverse-geocode/batch`
+- Excel import + sonuc indir: `POST http://localhost:8000/reverse-geocode/excel`
+  - `parallel_workers` parametresi ile paralel satir isleme desteklenir (1-8).
+  - Durum takibi: `GET /reverse-geocode/excel/status/{job_id}`
+  - Sonuc indir: `GET /reverse-geocode/excel/download/{job_id}`
 
 ## 2) MAKS verisini yerlestir
 
@@ -43,8 +47,6 @@ Yeni eklenen bir `.gdb` dosyasini mevcut raw verinin ustune eklemek (append) ici
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\etl\scripts\run_pipeline_safe.ps1 -GdbName YENI_IL.gdb -AppendImport -SkipInspect
 ```
-
-Not: Import varsayilani `ImportMode=all` oldugu icin GDB icindeki tum katmanlar alinir.
 
 ## 3.1) Tek Sefer Import, Sonra Sadece Servis Ac
 
@@ -89,7 +91,24 @@ curl -X POST "http://localhost:8000/reverse-geocode/batch" \
   -d "{\"points\":[{\"id\":\"A1\",\"lat\":37.8715,\"lon\":32.4846},{\"id\":\"A2\",\"lat\":37.8700,\"lon\":32.4900}],\"door_radius_m\":50,\"building_radius_m\":50,\"road_radius_m\":90,\"metric\":\"geodesic\",\"parallel_workers\":4}"
 ```
 
-## 5) Basit UI
+## 5) Excel Import Akisi
+
+Excel dosyasi `.xlsx` olmalidir:
+
+- A sutunu: `tesisat_no`
+- B sutunu: `CBS_X` (lon)
+- C sutunu: `CBS_Y` (lat)
+
+Koordinat format kurali:
+
+- Ondalik ayirici olarak `.` veya `,` kabul edilir.
+- B (X) araligi: `-180..180`
+- C (Y) araligi: `-90..90`
+- Hucre metni otomatik trimlenir ve en fazla 64 karakter dikkate alinir.
+
+API dosyayi isler, D sutununa `adres` yazar. UI tarafinda job progress (`islenen/toplam`) gorunur ve is bitince dosya indirilebilir.
+
+## 6) UI
 
 Tarayicida su adrese git:
 
@@ -97,8 +116,8 @@ Tarayicida su adrese git:
 
 UI uzerinden:
 
-- Tekli sorgu
-- Toplu sorgu (id,lat,lon satirlari)
-- Haritadan tekli sorgu tetikleme veya toplu listeye nokta ekleme
+- Tekli koordinat sorgu
+- Toplu koordinat sorgu
+- Excel import ve sonucu indir
 
-yapabilirsin.
+akislari kullanabilirsin.

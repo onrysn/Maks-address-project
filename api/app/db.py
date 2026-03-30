@@ -1,5 +1,6 @@
-from contextlib import contextmanager
+﻿from contextlib import contextmanager
 from typing import Iterator
+
 import psycopg
 
 from app.models import settings

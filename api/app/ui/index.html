@@ -6,159 +6,33 @@
   <title>MAKS Reverse Geocoding UI</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <style>
-    :root {
-      --bg: #f5f8f6;
-      --panel: #ffffff;
-      --ink: #1f2937;
-      --muted: #6b7280;
-      --accent: #0f766e;
-      --accent-soft: #ccfbf1;
-      --border: #d1d5db;
-      --warn: #b45309;
-    }
-
+    :root { --bg:#f5f8f6; --panel:#fff; --ink:#1f2937; --muted:#6b7280; --accent:#0f766e; --accent-soft:#ccfbf1; --border:#d1d5db; --warn:#b45309; }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "Segoe UI", "Arial", sans-serif;
-      color: var(--ink);
-      background: radial-gradient(circle at top right, #d1fae5 0%, var(--bg) 35%);
-    }
-
-    .layout {
-      display: grid;
-      grid-template-columns: 420px 1fr;
-      min-height: 100vh;
-    }
-
-    .panel {
-      padding: 20px;
-      border-right: 1px solid var(--border);
-      background: var(--panel);
-      overflow-y: auto;
-      max-height: 100vh;
-    }
-
-    h1 {
-      margin: 0 0 8px;
-      font-size: 22px;
-    }
-
-    p {
-      margin: 0 0 16px;
-      color: var(--muted);
-      line-height: 1.4;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    .mode-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    label {
-      font-size: 12px;
-      color: var(--muted);
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    input, select, button, textarea {
-      width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-size: 14px;
-    }
-
-    textarea {
-      min-height: 120px;
-      resize: vertical;
-      font-family: Consolas, "Courier New", monospace;
-    }
-
-    button {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      cursor: pointer;
-      font-weight: 600;
-      transition: transform 0.08s ease;
-      margin-top: 4px;
-    }
-
-    button:hover { transform: translateY(-1px); }
-
-    .secondary {
-      background: #0b5e56;
-    }
-
-    .toggle-btn {
-      background: #e5e7eb;
-      color: #111827;
-      border: 1px solid var(--border);
-    }
-
-    .toggle-btn.active {
-      background: var(--accent-soft);
-      color: var(--accent);
-      border-color: #99f6e4;
-      font-weight: 700;
-    }
-
-    .hint {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 8px;
-    }
-
-    .hint.warn {
-      color: var(--warn);
-    }
-
-    .result {
-      margin-top: 14px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px;
-      background: #f9fafb;
-      font-size: 13px;
-      white-space: pre-wrap;
-      min-height: 120px;
-      overflow-x: auto;
-    }
-
-    #map {
-      width: 100%;
-      height: 100vh;
-    }
-
-    .chip {
-      display: inline-block;
-      background: var(--accent-soft);
-      color: var(--accent);
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 12px;
-      margin-bottom: 10px;
-      font-weight: 700;
-    }
-
-    .hidden { display: none; }
-
-    @media (max-width: 960px) {
-      .layout { grid-template-columns: 1fr; }
-      .panel { border-right: none; border-bottom: 1px solid var(--border); max-height: none; }
-      #map { height: 60vh; }
-    }
+    body { margin:0; font-family:"Segoe UI","Arial",sans-serif; color:var(--ink); background:radial-gradient(circle at top right,#d1fae5 0%,var(--bg) 35%); }
+    .layout { display:grid; grid-template-columns:460px 1fr; min-height:100vh; }
+    .panel { padding:20px; border-right:1px solid var(--border); background:var(--panel); overflow-y:auto; max-height:100vh; }
+    h1 { margin:0 0 8px; font-size:22px; }
+    p { margin:0 0 16px; color:var(--muted); line-height:1.4; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+    .section { border:1px solid var(--border); border-radius:12px; padding:0; margin-bottom:12px; background:#fcfdfd; }
+    .section-header { width:100%; text-align:left; border:none; border-bottom:1px solid transparent; border-radius:12px; background:#eef2f7; color:#0f172a; padding:12px; margin:0; font-weight:700; cursor:pointer; }
+    .section.open .section-header { border-bottom-color:var(--border); border-bottom-left-radius:0; border-bottom-right-radius:0; background:var(--accent-soft); color:var(--accent); }
+    .section-body { display:none; padding:12px; }
+    .section.open .section-body { display:block; }
+    label { font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+    input,select,button,textarea { width:100%; border:1px solid var(--border); border-radius:10px; padding:10px 12px; font-size:14px; }
+    textarea { min-height:110px; resize:vertical; font-family:Consolas,"Courier New",monospace; }
+    button { background:var(--accent); color:#fff; border:none; cursor:pointer; font-weight:600; margin-top:4px; }
+    .secondary { background:#0b5e56; }
+    .hint { font-size:12px; color:var(--muted); margin-top:8px; }
+    .hint.warn { color:var(--warn); }
+    .progress-wrap { margin-top:10px; }
+    .progress-bar { width:100%; height:10px; border-radius:999px; background:#e5e7eb; overflow:hidden; }
+    .progress-fill { width:0%; height:100%; background:var(--accent); transition:width .2s ease; }
+    .result { margin-top:14px; border:1px solid var(--border); border-radius:12px; padding:12px; background:#f9fafb; font-size:13px; white-space:pre-wrap; min-height:120px; overflow-x:auto; }
+    #map { width:100%; height:100vh; }
+    .chip { display:inline-block; background:var(--accent-soft); color:var(--accent); border-radius:999px; padding:4px 10px; font-size:12px; margin-bottom:10px; font-weight:700; }
+    @media (max-width:960px){ .layout{grid-template-columns:1fr;} .panel{border-right:none; border-bottom:1px solid var(--border); max-height:none;} #map{height:60vh;} }
   </style>
 </head>
 <body>
@@ -166,71 +40,64 @@
     <div class="panel">
       <div class="chip">MAKS UI</div>
       <h1>Reverse Geocoding</h1>
-      <p>Tekli veya toplu sorgu yap. Harita tiklamasi secili moda gore calisir.</p>
-
-      <div class="mode-grid">
-        <button id="singleModeBtn" class="toggle-btn active" type="button">Tekli</button>
-        <button id="batchModeBtn" class="toggle-btn" type="button">Toplu</button>
-      </div>
+      <p>Tekli, toplu ve Excel import akislari.</p>
 
       <div class="grid">
-        <div>
-          <label for="doorRadius">Kapi Radius (m)</label>
-          <input id="doorRadius" type="number" step="1" value="50" />
-        </div>
-        <div>
-          <label for="buildingRadius">Bina Radius (m)</label>
-          <input id="buildingRadius" type="number" step="1" value="50" />
-        </div>
+        <div><label for="doorRadius">Kapi Radius (m)</label><input id="doorRadius" type="number" step="1" value="50" /></div>
+        <div><label for="buildingRadius">Bina Radius (m)</label><input id="buildingRadius" type="number" step="1" value="50" /></div>
       </div>
-
       <div class="grid">
-        <div>
-          <label for="roadRadius">Yol Radius (m)</label>
-          <input id="roadRadius" type="number" step="1" value="90" />
-        </div>
-        <div>
-          <label for="metric">Metric</label>
-          <select id="metric">
-            <option value="geodesic" selected>geodesic</option>
-            <option value="planar">planar</option>
-          </select>
+        <div><label for="roadRadius">Yol Radius (m)</label><input id="roadRadius" type="number" step="1" value="90" /></div>
+        <div><label for="metric">Metric</label><select id="metric"><option value="geodesic" selected>geodesic</option><option value="planar">planar</option></select></div>
+      </div>
+
+      <div class="section open" id="sec-single">
+        <button class="section-header" type="button" data-acc-target="single">Tekli Koordinat Sorgula</button>
+        <div class="section-body">
+          <div class="grid">
+            <div><label for="lat">Enlem (Y)</label><input id="lat" type="number" step="any" value="37.8715" /></div>
+            <div><label for="lon">Boylam (X)</label><input id="lon" type="number" step="any" value="32.4846" /></div>
+          </div>
+          <button id="queryBtn" type="button">Tekli Koordinat Sorgula</button>
+          <div class="hint">Haritaya tiklayinca koordinatlar dolar.</div>
         </div>
       </div>
 
-      <div id="singleSection">
-        <div class="grid">
-          <div>
-            <label for="lat">Enlem (Y)</label>
-            <input id="lat" type="number" step="any" value="37.8715" />
+      <div class="section" id="sec-batch-coord">
+        <button class="section-header" type="button" data-acc-target="batch-coord">Toplu Koordinat Sorgula</button>
+        <div class="section-body">
+          <div class="grid">
+            <div><label for="workers">Paralel Worker</label><input id="workers" type="number" step="1" min="1" max="8" value="4" /></div>
+            <div><label>&nbsp;</label><button id="addMapPointBtn" class="secondary" type="button">Haritadaki Noktayi Ekle</button></div>
           </div>
-          <div>
-            <label for="lon">Boylam (X)</label>
-            <input id="lon" type="number" step="any" value="32.4846" />
-          </div>
-        </div>
-        <button id="queryBtn" type="button">Tekli Sorgula</button>
-        <div class="hint">Haritaya tiklarsan koordinat dolup tekli sorgu calisir.</div>
-      </div>
-
-      <div id="batchSection" class="hidden">
-        <div class="grid">
-          <div>
-            <label for="workers">Paralel Worker</label>
-            <input id="workers" type="number" step="1" min="1" max="8" value="4" />
-          </div>
-          <div>
-            <label for="batchSample">Ornek Format</label>
-            <input id="batchSample" type="text" value="id,lat,lon" disabled />
-          </div>
-        </div>
-        <label for="batchPoints">Noktalar (satir satir: id,lat,lon veya lat,lon)</label>
-        <textarea id="batchPoints">A1,37.871500,32.484600
+          <label for="batchPoints">Noktalar (satir satir: id,lat,lon veya lat,lon)</label>
+          <textarea id="batchPoints">A1,37.871500,32.484600
 A2,37.870000,32.490000</textarea>
-        <button id="batchQueryBtn" type="button">Toplu Sorgula</button>
-        <button id="clearBatchBtn" class="secondary" type="button">Toplu Listeyi Temizle</button>
-        <div class="hint">Toplu moddayken haritaya tiklarsan listeye yeni satir eklenir.</div>
-        <div class="hint warn">Toplu endpoint limiti: 2000 nokta/istek.</div>
+          <button id="batchQueryBtn" type="button">Toplu Koordinat Sorgula</button>
+          <button id="clearBatchBtn" class="secondary" type="button">Toplu Koordinat Listeyi Temizle</button>
+          <div class="hint warn">Limit: 2000 nokta/istek.</div>
+        </div>
+      </div>
+
+      <div class="section" id="sec-excel">
+        <button class="section-header" type="button" data-acc-target="excel">Excel Import ve Indir</button>
+        <div class="section-body">
+          <div class="grid">
+            <div><label for="excelWorkers">Paralel Worker</label><input id="excelWorkers" type="number" step="1" min="1" max="8" value="4" /></div>
+            <div></div>
+          </div>
+          <label for="excelFile">Excel Dosyasi (.xlsx)</label>
+          <input id="excelFile" type="file" accept=".xlsx" />
+          <div class="hint">A: tesisat_no, B: CBS_X, C: CBS_Y, cikti D: adres</div>
+          <div class="hint">Format: ondalikta nokta veya virgul kabul edilir. Metinler otomatik trimlenir (max 64 karakter).</div>
+          <button id="excelUploadBtn" type="button">Excel Islemeyi Baslat</button>
+          <button id="excelDownloadBtn" class="secondary" type="button" disabled>Sonucu Indir</button>
+
+          <div class="progress-wrap">
+            <div id="excelProgressText" class="hint">Hazir</div>
+            <div class="progress-bar"><div id="excelProgressFill" class="progress-fill"></div></div>
+          </div>
+        </div>
       </div>
 
       <div id="result" class="result">Sonuc burada gorunecek.</div>
@@ -242,18 +109,12 @@ A2,37.870000,32.490000</textarea>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
     const map = L.map('map').setView([37.8715, 32.4846], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
 
     const singleMarker = L.marker([37.8715, 32.4846]).addTo(map);
     const batchLayer = L.layerGroup().addTo(map);
-
-    const singleModeBtn = document.getElementById('singleModeBtn');
-    const batchModeBtn = document.getElementById('batchModeBtn');
-    const singleSection = document.getElementById('singleSection');
-    const batchSection = document.getElementById('batchSection');
+    let lastMapClick = { lat: 37.8715, lon: 32.4846 };
+    let currentExcelJobId = null;
 
     const latEl = document.getElementById('lat');
     const lonEl = document.getElementById('lon');
@@ -263,23 +124,20 @@ A2,37.870000,32.490000</textarea>
     const metricEl = document.getElementById('metric');
     const workersEl = document.getElementById('workers');
     const batchPointsEl = document.getElementById('batchPoints');
+    const addMapPointBtn = document.getElementById('addMapPointBtn');
+    const excelFileEl = document.getElementById('excelFile');
+    const excelWorkersEl = document.getElementById('excelWorkers');
+    const excelProgressTextEl = document.getElementById('excelProgressText');
+    const excelProgressFillEl = document.getElementById('excelProgressFill');
 
     const resultEl = document.getElementById('result');
     const queryBtn = document.getElementById('queryBtn');
     const batchQueryBtn = document.getElementById('batchQueryBtn');
     const clearBatchBtn = document.getElementById('clearBatchBtn');
+    const excelUploadBtn = document.getElementById('excelUploadBtn');
+    const excelDownloadBtn = document.getElementById('excelDownloadBtn');
 
-    let mode = 'single';
-
-    function setMode(nextMode) {
-      mode = nextMode;
-      const isSingle = mode === 'single';
-      singleSection.classList.toggle('hidden', !isSingle);
-      batchSection.classList.toggle('hidden', isSingle);
-      singleModeBtn.classList.toggle('active', isSingle);
-      batchModeBtn.classList.toggle('active', !isSingle);
-      singleMarker.setOpacity(isSingle ? 1 : 0.4);
-    }
+    const sections = { single: document.getElementById('sec-single'), 'batch-coord': document.getElementById('sec-batch-coord'), excel: document.getElementById('sec-excel') };
 
     function baseParams() {
       return {
@@ -290,53 +148,45 @@ A2,37.870000,32.490000</textarea>
       };
     }
 
+    function openSection(target) {
+      Object.entries(sections).forEach(([key, el]) => { if (el) el.classList.toggle('open', key === target); });
+    }
+
     function setSingleMarker(lat, lon) {
       singleMarker.setLatLng([lat, lon]);
       map.panTo([lat, lon]);
+      lastMapClick = { lat, lon };
     }
 
     function parseBatchPoints(text) {
-      const lines = text
-        .split(/\r?\n/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-
+      const lines = text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
       const points = [];
       for (let i = 0; i < lines.length; i += 1) {
         const line = lines[i];
         const parts = line.split(',').map((s) => s.trim());
-
         if (parts.length === 2) {
           const lat = Number(parts[0]);
           const lon = Number(parts[1]);
-          if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-            throw new Error(`Satir ${i + 1} gecersiz: ${line}`);
-          }
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error(`Satir ${i + 1} gecersiz: ${line}`);
           points.push({ id: String(i + 1), lat, lon });
         } else if (parts.length >= 3) {
           const id = parts[0] || String(i + 1);
           const lat = Number(parts[1]);
           const lon = Number(parts[2]);
-          if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-            throw new Error(`Satir ${i + 1} gecersiz: ${line}`);
-          }
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error(`Satir ${i + 1} gecersiz: ${line}`);
           points.push({ id, lat, lon });
         } else {
           throw new Error(`Satir ${i + 1} gecersiz: ${line}`);
         }
       }
-
       return points;
     }
 
     function paintBatchOnMap(items) {
       batchLayer.clearLayers();
       for (const item of items) {
-        const marker = L.circleMarker([item.lat, item.lon], {
-          radius: 5,
-          color: item.ok ? '#0f766e' : '#b91c1c',
-          fillOpacity: 0.8,
-        });
+        if (!Number.isFinite(item.lat) || !Number.isFinite(item.lon)) continue;
+        const marker = L.circleMarker([item.lat, item.lon], { radius: 5, color: item.ok ? '#0f766e' : '#b91c1c', fillOpacity: 0.8 });
         const text = item.ok ? (item.result?.adres || 'Sonuc var') : (item.error || 'Hata');
         marker.bindPopup(`<b>${item.id || '-'}</b><br/>${text}`);
         marker.addTo(batchLayer);
@@ -346,102 +196,151 @@ A2,37.870000,32.490000</textarea>
     async function querySingle() {
       const lat = Number(latEl.value);
       const lon = Number(lonEl.value);
-
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        resultEl.textContent = 'Gecerli koordinat gir.';
-        return;
-      }
-
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) { resultEl.textContent = 'Gecerli koordinat gir.'; return; }
       const params = baseParams();
       setSingleMarker(lat, lon);
       resultEl.textContent = 'Sorgulaniyor...';
-
-      const qs = new URLSearchParams({
-        lat: String(lat),
-        lon: String(lon),
-        door_radius_m: String(params.door_radius_m),
-        building_radius_m: String(params.building_radius_m),
-        road_radius_m: String(params.road_radius_m),
-        metric: params.metric,
-      });
-
+      const qs = new URLSearchParams({ lat: String(lat), lon: String(lon), door_radius_m: String(params.door_radius_m), building_radius_m: String(params.building_radius_m), road_radius_m: String(params.road_radius_m), metric: params.metric });
       try {
         const res = await fetch(`/reverse-geocode?${qs.toString()}`);
         const data = await res.json();
-        if (!res.ok) {
-          resultEl.textContent = `Hata (${res.status}):\n${JSON.stringify(data, null, 2)}`;
-          return;
-        }
+        if (!res.ok) { resultEl.textContent = `Hata (${res.status}):\n${JSON.stringify(data, null, 2)}`; return; }
         resultEl.textContent = JSON.stringify(data, null, 2);
-      } catch (err) {
-        resultEl.textContent = `Istek hatasi: ${err}`;
-      }
+      } catch (err) { resultEl.textContent = `Istek hatasi: ${err}`; }
     }
 
     async function queryBatch() {
       let points;
-      try {
-        points = parseBatchPoints(batchPointsEl.value);
-      } catch (err) {
-        resultEl.textContent = `Parse hatasi: ${err.message}`;
-        return;
-      }
-
+      try { points = parseBatchPoints(batchPointsEl.value); }
+      catch (err) { resultEl.textContent = `Parse hatasi: ${err.message}`; return; }
       const params = baseParams();
       const workers = Number(workersEl.value) || 1;
+      resultEl.textContent = `Toplu koordinat sorgusu basladi... (${points.length} nokta)`;
+      const body = { points, door_radius_m: params.door_radius_m, building_radius_m: params.building_radius_m, road_radius_m: params.road_radius_m, metric: params.metric, parallel_workers: Math.max(1, Math.min(8, workers)) };
+      try {
+        const res = await fetch('/reverse-geocode/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) { resultEl.textContent = `Hata (${res.status}):\n${JSON.stringify(data, null, 2)}`; return; }
+        paintBatchOnMap(data.items || []);
+        resultEl.textContent = JSON.stringify(data, null, 2);
+      } catch (err) { resultEl.textContent = `Istek hatasi: ${err}`; }
+    }
 
-      resultEl.textContent = `Toplu sorgu basladi... (${points.length} nokta)`;
+    async function startExcelJob() {
+      const file = excelFileEl.files?.[0];
+      if (!file) { resultEl.textContent = 'Lutfen bir .xlsx dosyasi sec.'; return; }
 
-      const body = {
-        points,
-        door_radius_m: params.door_radius_m,
-        building_radius_m: params.building_radius_m,
-        road_radius_m: params.road_radius_m,
-        metric: params.metric,
-        parallel_workers: Math.max(1, Math.min(8, workers)),
-      };
+      const params = baseParams();
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('door_radius_m', String(params.door_radius_m));
+      formData.append('building_radius_m', String(params.building_radius_m));
+      formData.append('road_radius_m', String(params.road_radius_m));
+      formData.append('metric', params.metric);
+      formData.append('parallel_workers', String(Math.max(1, Math.min(8, Number(excelWorkersEl.value) || 1))));
+
+      excelUploadBtn.disabled = true;
+      excelDownloadBtn.disabled = true;
+      excelProgressTextEl.textContent = 'Job baslatiliyor...';
+      excelProgressFillEl.style.width = '0%';
 
       try {
-        const res = await fetch('/reverse-geocode/batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-
+        const res = await fetch('/reverse-geocode/excel', { method: 'POST', body: formData });
         const data = await res.json();
-        if (!res.ok) {
-          resultEl.textContent = `Hata (${res.status}):\n${JSON.stringify(data, null, 2)}`;
+        if (!res.ok) { resultEl.textContent = `Hata (${res.status}):\n${JSON.stringify(data, null, 2)}`; excelUploadBtn.disabled = false; return; }
+        currentExcelJobId = data.job_id;
+        resultEl.textContent = `Excel job basladi: ${currentExcelJobId}`;
+        pollExcelStatus();
+      } catch (err) {
+        resultEl.textContent = `Istek hatasi: ${err}`;
+        excelUploadBtn.disabled = false;
+      }
+    }
+
+    async function pollExcelStatus() {
+      if (!currentExcelJobId) return;
+      try {
+        const res = await fetch(`/reverse-geocode/excel/status/${currentExcelJobId}`);
+        const data = await res.json();
+        if (!res.ok) { resultEl.textContent = `Status hatasi (${res.status}):\n${JSON.stringify(data, null, 2)}`; excelUploadBtn.disabled = false; return; }
+
+        const pct = Number(data.percent || 0);
+        excelProgressFillEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+        excelProgressTextEl.textContent = `Durum: ${data.status} | ${data.processed}/${data.total} | %${pct}`;
+
+        if (data.status === 'completed') {
+          excelDownloadBtn.disabled = false;
+          excelUploadBtn.disabled = false;
+          resultEl.textContent = 'Excel islemi tamamlandi. Indir butonunu kullanabilirsin.';
           return;
         }
 
-        paintBatchOnMap(data.items || []);
-        resultEl.textContent = JSON.stringify(data, null, 2);
+        if (data.status === 'failed') {
+          excelUploadBtn.disabled = false;
+          excelDownloadBtn.disabled = true;
+          resultEl.textContent = `Excel isleme hatasi: ${data.error}`;
+          return;
+        }
+
+        setTimeout(pollExcelStatus, 1000);
       } catch (err) {
-        resultEl.textContent = `Istek hatasi: ${err}`;
+        excelUploadBtn.disabled = false;
+        resultEl.textContent = `Status istek hatasi: ${err}`;
+      }
+    }
+
+    async function downloadExcelResult() {
+      if (!currentExcelJobId) return;
+      try {
+        const res = await fetch(`/reverse-geocode/excel/download/${currentExcelJobId}`);
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          resultEl.textContent = `Download hatasi (${res.status}):\n${JSON.stringify(data, null, 2)}`;
+          return;
+        }
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const cd = res.headers.get('Content-Disposition') || '';
+        const m = cd.match(/filename="?([^";]+)"?/i);
+        a.href = url;
+        a.download = m ? m[1] : 'reverse_geocode_result.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        resultEl.textContent = `Download istek hatasi: ${err}`;
       }
     }
 
     map.on('click', (e) => {
       const { lat, lng } = e.latlng;
-      if (mode === 'single') {
-        latEl.value = lat.toFixed(6);
-        lonEl.value = lng.toFixed(6);
-        querySingle();
-      } else {
-        const nextIndex = batchPointsEl.value.split(/\r?\n/).filter((s) => s.trim()).length + 1;
-        const line = `P${nextIndex},${lat.toFixed(6)},${lng.toFixed(6)}`;
-        batchPointsEl.value = batchPointsEl.value.trim() ? `${batchPointsEl.value}\n${line}` : line;
-      }
+      latEl.value = lat.toFixed(6);
+      lonEl.value = lng.toFixed(6);
+      setSingleMarker(lat, lng);
     });
 
-    singleModeBtn.addEventListener('click', () => setMode('single'));
-    batchModeBtn.addEventListener('click', () => setMode('batch'));
+    document.querySelectorAll('[data-acc-target]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const target = btn.getAttribute('data-acc-target');
+        if (target) openSection(target);
+      });
+    });
+
+    addMapPointBtn.addEventListener('click', () => {
+      const lines = batchPointsEl.value.split(/\r?\n/).filter((s) => s.trim());
+      const nextIndex = lines.length + 1;
+      const line = `P${nextIndex},${lastMapClick.lat.toFixed(6)},${lastMapClick.lon.toFixed(6)}`;
+      batchPointsEl.value = batchPointsEl.value.trim() ? `${batchPointsEl.value}\n${line}` : line;
+    });
+
     queryBtn.addEventListener('click', querySingle);
     batchQueryBtn.addEventListener('click', queryBatch);
-    clearBatchBtn.addEventListener('click', () => {
-      batchPointsEl.value = '';
-      batchLayer.clearLayers();
-    });
+    clearBatchBtn.addEventListener('click', () => { batchPointsEl.value = ''; batchLayer.clearLayers(); });
+    excelUploadBtn.addEventListener('click', startExcelJob);
+    excelDownloadBtn.addEventListener('click', downloadExcelResult);
   </script>
 </body>
 </html>

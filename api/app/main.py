@@ -1,17 +1,25 @@
-﻿from concurrent.futures import ThreadPoolExecutor
+﻿from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from io import BytesIO
 from pathlib import Path
-from typing import Literal
+import threading
+from typing import Callable, Literal
+from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
+from openpyxl import load_workbook
 from pydantic import BaseModel, Field
 
 from app.db import get_conn
 
-app = FastAPI(title="MAKS Reverse Geocoding", version="0.2.0")
+app = FastAPI(title="MAKS Reverse Geocoding", version="0.4.0")
 UI_PATH = Path(__file__).resolve().parent / "ui" / "index.html"
 MAX_BATCH_POINTS = 2000
 MAX_PARALLEL_WORKERS = 8
+MAX_COORD_TEXT_LEN = 64
+EXCEL_JOBS: dict[str, dict] = {}
+EXCEL_JOBS_LOCK = threading.Lock()
 
 
 class BatchPoint(BaseModel):
@@ -44,7 +52,7 @@ def ui_page() -> FileResponse:
     return FileResponse(UI_PATH)
 
 
-def _build_query(metric: str) -> tuple[str, str, str]:
+def _build_query(metric: str) -> tuple[str, str]:
     pt_expr = "ST_SetSRID(ST_MakePoint(%s, %s), 4326)"
     norm_tpl = "UPPER(REGEXP_REPLACE(BTRIM(CAST({expr} AS text)), '\\.0+$', ''))"
 
@@ -193,7 +201,7 @@ def _build_query(metric: str) -> tuple[str, str, str]:
         road_dist=dist.format(geom="yoh.geom"),
         road_within=within.format(geom="yoh.geom"),
     )
-    return query, pt_expr, norm_tpl
+    return query, pt_expr
 
 
 def _row_to_payload(row: tuple, door_radius_m: float, building_radius_m: float, road_radius_m: float, metric: str) -> dict:
@@ -237,7 +245,7 @@ def _row_to_payload(row: tuple, door_radius_m: float, building_radius_m: float, 
 
 
 def _resolve_one(lat: float, lon: float, door_radius_m: float, building_radius_m: float, road_radius_m: float, metric: str) -> dict:
-    query, _, _ = _build_query(metric)
+    query, _ = _build_query(metric)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -254,6 +262,142 @@ def _resolve_one(lat: float, lon: float, door_radius_m: float, building_radius_m
             if not row:
                 raise HTTPException(status_code=404, detail="Adres bulunamadi")
             return _row_to_payload(row, door_radius_m, building_radius_m, road_radius_m, metric)
+
+
+def _parse_coord(value: object) -> float | None:
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    # Trim long coordinate strings to avoid malformed spreadsheet values.
+    if len(text) > MAX_COORD_TEXT_LEN:
+        text = text[:MAX_COORD_TEXT_LEN]
+
+    text = text.replace(" ", "")
+    if "," in text and "." not in text:
+        text = text.replace(",", ".")
+    elif "," in text and "." in text:
+        text = text.replace(",", "")
+
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_excel_row(
+    row_idx: int,
+    x: float | None,
+    y: float | None,
+    door_radius_m: float,
+    building_radius_m: float,
+    road_radius_m: float,
+    metric: str,
+) -> tuple[int, str]:
+    if x is None or y is None:
+        return row_idx, "HATA: CBS_X/CBS_Y gecersiz"
+
+    if not (-180 <= x <= 180 and -90 <= y <= 90):
+        return row_idx, "HATA: Koordinat araligi gecersiz (X:-180..180, Y:-90..90)"
+
+    try:
+        result = _resolve_one(y, x, door_radius_m, building_radius_m, road_radius_m, metric)
+        return row_idx, result.get("adres") or ""
+    except Exception as ex:
+        return row_idx, f"HATA: {ex}"
+
+
+def _set_job(job_id: str, **kwargs) -> None:
+    with EXCEL_JOBS_LOCK:
+        if job_id in EXCEL_JOBS:
+            EXCEL_JOBS[job_id].update(kwargs)
+
+
+def _process_excel_job(
+    job_id: str,
+    file_bytes: bytes,
+    door_radius_m: float,
+    building_radius_m: float,
+    road_radius_m: float,
+    metric: str,
+    parallel_workers: int,
+) -> None:
+    try:
+        wb = load_workbook(BytesIO(file_bytes))
+        ws = wb.active
+        ws.cell(row=1, column=4, value="adres")
+
+        jobs: list[tuple[int, float | None, float | None]] = []
+        for r in range(2, ws.max_row + 1):
+            x = _parse_coord(ws.cell(row=r, column=2).value)
+            y = _parse_coord(ws.cell(row=r, column=3).value)
+            jobs.append((r, x, y))
+
+        total = len(jobs)
+        _set_job(job_id, total=total, processed=0, status="running")
+
+        worker_count = max(1, min(MAX_PARALLEL_WORKERS, int(parallel_workers)))
+        row_results: list[tuple[int, str]] = []
+
+        if worker_count > 1:
+            with ThreadPoolExecutor(max_workers=worker_count) as pool:
+                fut_map = {
+                    pool.submit(
+                        _resolve_excel_row,
+                        r,
+                        x,
+                        y,
+                        door_radius_m,
+                        building_radius_m,
+                        road_radius_m,
+                        metric,
+                    ): r
+                    for r, x, y in jobs
+                }
+                processed = 0
+                for fut in as_completed(fut_map):
+                    row_results.append(fut.result())
+                    processed += 1
+                    _set_job(job_id, processed=processed)
+        else:
+            processed = 0
+            for r, x, y in jobs:
+                row_results.append(
+                    _resolve_excel_row(
+                        r,
+                        x,
+                        y,
+                        door_radius_m,
+                        building_radius_m,
+                        road_radius_m,
+                        metric,
+                    )
+                )
+                processed += 1
+                _set_job(job_id, processed=processed)
+
+        for row_idx, text in row_results:
+            ws.cell(row=row_idx, column=4, value=text)
+
+        out = BytesIO()
+        wb.save(out)
+        out.seek(0)
+
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_name = f"reverse_geocode_result_{stamp}.xlsx"
+
+        _set_job(
+            job_id,
+            status="completed",
+            output_name=output_name,
+            output_bytes=out.getvalue(),
+            finished_at=datetime.now().isoformat(),
+        )
+    except Exception as ex:
+        _set_job(job_id, status="failed", error=str(ex), finished_at=datetime.now().isoformat())
 
 
 @app.get("/reverse-geocode")
@@ -320,3 +464,93 @@ def reverse_geocode_batch(req: BatchReverseRequest) -> dict:
         },
         "items": items,
     }
+
+
+@app.post("/reverse-geocode/excel")
+def reverse_geocode_excel_start(
+    file: UploadFile = File(...),
+    door_radius_m: float = Form(20.0),
+    building_radius_m: float = Form(60.0),
+    road_radius_m: float = Form(120.0),
+    metric: Literal["geodesic", "planar"] = Form("geodesic"),
+    parallel_workers: int = Form(4),
+) -> dict:
+    filename = file.filename or "input.xlsx"
+    if not filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Sadece .xlsx dosyasi destekleniyor")
+
+    file_bytes = file.file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Excel dosyasi bos")
+
+    job_id = uuid4().hex
+    with EXCEL_JOBS_LOCK:
+        EXCEL_JOBS[job_id] = {
+            "job_id": job_id,
+            "status": "queued",
+            "processed": 0,
+            "total": 0,
+            "created_at": datetime.now().isoformat(),
+            "output_name": None,
+            "output_bytes": None,
+            "error": None,
+            "finished_at": None,
+        }
+
+    thread = threading.Thread(
+        target=_process_excel_job,
+        args=(
+            job_id,
+            file_bytes,
+            door_radius_m,
+            building_radius_m,
+            road_radius_m,
+            metric,
+            parallel_workers,
+        ),
+        daemon=True,
+    )
+    thread.start()
+
+    return {"job_id": job_id, "status": "queued"}
+
+
+@app.get("/reverse-geocode/excel/status/{job_id}")
+def reverse_geocode_excel_status(job_id: str) -> dict:
+    with EXCEL_JOBS_LOCK:
+        job = EXCEL_JOBS.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job bulunamadi")
+
+        total = int(job.get("total") or 0)
+        processed = int(job.get("processed") or 0)
+        percent = round((processed / total) * 100, 2) if total > 0 else 0.0
+        return {
+            "job_id": job_id,
+            "status": job.get("status"),
+            "processed": processed,
+            "total": total,
+            "percent": percent,
+            "download_ready": job.get("status") == "completed",
+            "error": job.get("error"),
+        }
+
+
+@app.get("/reverse-geocode/excel/download/{job_id}")
+def reverse_geocode_excel_download(job_id: str) -> StreamingResponse:
+    with EXCEL_JOBS_LOCK:
+        job = EXCEL_JOBS.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job bulunamadi")
+        if job.get("status") != "completed":
+            raise HTTPException(status_code=409, detail="Dosya henuz hazir degil")
+
+        output_bytes = job.get("output_bytes")
+        output_name = job.get("output_name") or "reverse_geocode_result.xlsx"
+
+    headers = {"Content-Disposition": f'attachment; filename="{output_name}"'}
+    return StreamingResponse(
+        BytesIO(output_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
