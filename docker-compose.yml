@@ -1,4 +1,6 @@
-﻿services:
+version: '2.4'
+
+services:
   db:
     image: postgis/postgis:16-3.4
     container_name: maks-postgis
@@ -57,3 +59,4 @@
 
 volumes:
   pgdata:
+
