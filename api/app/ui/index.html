@@ -84,11 +84,12 @@ A2,37.870000,32.490000</textarea>
         <div class="section-body">
           <div class="grid">
             <div><label for="excelWorkers">Paralel Worker</label><input id="excelWorkers" type="number" step="1" min="1" max="8" value="4" /></div>
-            <div></div>
+            <div><label for="excelCoordOrder">Koordinat Duzeni</label><select id="excelCoordOrder"><option value="auto" selected>auto (onerilen)</option><option value="xy">xy (B=X, C=Y)</option><option value="yx">yx (B=Y, C=X)</option></select></div>
           </div>
           <label for="excelFile">Excel Dosyasi (.xlsx)</label>
           <input id="excelFile" type="file" accept=".xlsx" />
-          <div class="hint">A: tesisat_no, B: CBS_X, C: CBS_Y, cikti D: adres</div>
+          <div class="hint">A: tesisat_no, B: CBS_X, C: CBS_Y</div>
+          <div class="hint">Cikti D'den itibaren: IL, ILCE, KOY, KOY_BULMA_YONTEMI, MAHALLE, MAHALLE_BULMA_YONTEMI, EN_YAKIN_CADDE_SOKAK, BINADAN_GELEN_CADDE_SOKAK, BINA_NO, KAPI_NO</div>
           <div class="hint">Format: ondalikta nokta veya virgul kabul edilir. Metinler otomatik trimlenir (max 64 karakter).</div>
           <button id="excelUploadBtn" type="button">Excel Islemeyi Baslat</button>
           <button id="excelDownloadBtn" class="secondary" type="button" disabled>Sonucu Indir</button>
@@ -127,6 +128,7 @@ A2,37.870000,32.490000</textarea>
     const addMapPointBtn = document.getElementById('addMapPointBtn');
     const excelFileEl = document.getElementById('excelFile');
     const excelWorkersEl = document.getElementById('excelWorkers');
+    const excelCoordOrderEl = document.getElementById('excelCoordOrder');
     const excelProgressTextEl = document.getElementById('excelProgressText');
     const excelProgressFillEl = document.getElementById('excelProgressFill');
 
@@ -238,6 +240,7 @@ A2,37.870000,32.490000</textarea>
       formData.append('road_radius_m', String(params.road_radius_m));
       formData.append('metric', params.metric);
       formData.append('parallel_workers', String(Math.max(1, Math.min(8, Number(excelWorkersEl.value) || 1))));
+      formData.append('coord_order', excelCoordOrderEl.value || 'auto');
 
       excelUploadBtn.disabled = true;
       excelDownloadBtn.disabled = true;

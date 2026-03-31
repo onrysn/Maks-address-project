@@ -3,7 +3,7 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 import threading
-from typing import Callable, Literal
+from typing import Literal
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
@@ -13,13 +13,25 @@ from pydantic import BaseModel, Field
 
 from app.db import get_conn
 
-app = FastAPI(title="MAKS Reverse Geocoding", version="0.4.0")
+app = FastAPI(title="MAKS Reverse Geocoding", version="0.5.0")
 UI_PATH = Path(__file__).resolve().parent / "ui" / "index.html"
 MAX_BATCH_POINTS = 2000
 MAX_PARALLEL_WORKERS = 8
 MAX_COORD_TEXT_LEN = 64
 EXCEL_JOBS: dict[str, dict] = {}
 EXCEL_JOBS_LOCK = threading.Lock()
+EXCEL_HEADERS = [
+    "IL",
+    "ILCE",
+    "KOY",
+    "KOY_BULMA_YONTEMI",
+    "MAHALLE",
+    "MAHALLE_BULMA_YONTEMI",
+    "EN_YAKIN_CADDE_SOKAK",
+    "BINADAN_GELEN_CADDE_SOKAK",
+    "BINA_NO",
+    "KAPI_NO",
+]
 
 
 class BatchPoint(BaseModel):
@@ -71,7 +83,16 @@ def _build_query(metric: str) -> tuple[str, str]:
           SELECT
             il_hit.ad AS il,
             ilce_hit.ad AS ilce,
-            settlement_hit.ad AS mahalle
+            koy_hit.ad AS koy,
+            CASE
+              WHEN koy_hit.is_inside THEN 'poligon_icinde'
+              ELSE 'en_yakin'
+            END AS koy_bulma_yontemi,
+            mahalle_hit.ad AS mahalle,
+            CASE
+              WHEN mahalle_hit.is_inside THEN 'poligon_icinde'
+              ELSE 'en_yakin'
+            END AS mahalle_bulma_yontemi
           FROM p
           LEFT JOIN LATERAL (
             SELECT i.ad
@@ -86,20 +107,19 @@ def _build_query(metric: str) -> tuple[str, str]:
             LIMIT 1
           ) ilce_hit ON TRUE
           LEFT JOIN LATERAL (
-            SELECT s.ad
-            FROM (
-              SELECT m.ad, m.geom, 1 AS pri, ST_Covers(m.geom, p.geom) AS covered
-              FROM raw_maks.mahalle m
-              UNION ALL
-              SELECT k.ad, k.geom, 2 AS pri, ST_Covers(k.geom, p.geom) AS covered
-              FROM raw_maks.koy k
-            ) s
-            ORDER BY
-              s.covered DESC,
-              CASE WHEN s.covered THEN s.pri ELSE 999 END,
-              s.geom <-> p.geom
+            SELECT k.ad
+                 , ST_Covers(k.geom, p.geom) AS is_inside
+            FROM raw_maks.koy k
+            ORDER BY ST_Covers(k.geom, p.geom) DESC, k.geom <-> p.geom
             LIMIT 1
-          ) settlement_hit ON TRUE
+          ) koy_hit ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT m.ad
+                 , ST_Covers(m.geom, p.geom) AS is_inside
+            FROM raw_maks.mahalle m
+            ORDER BY ST_Covers(m.geom, p.geom) DESC, m.geom <-> p.geom
+            LIMIT 1
+          ) mahalle_hit ON TRUE
           LIMIT 1
         ),
         nearest_door AS (
@@ -164,7 +184,10 @@ def _build_query(metric: str) -> tuple[str, str]:
         SELECT
           a.il,
           a.ilce,
+          a.koy,
+          a.koy_bulma_yontemi,
           a.mahalle,
+          a.mahalle_bulma_yontemi,
           nd.kapi_no,
           sy.bina_no,
           nr.road_name AS en_yakin_cadde_sokak,
@@ -205,10 +228,26 @@ def _build_query(metric: str) -> tuple[str, str]:
 
 
 def _row_to_payload(row: tuple, door_radius_m: float, building_radius_m: float, road_radius_m: float, metric: str) -> dict:
-    il, ilce, mahalle, kapi_no, bina_no, en_yakin_cadde_sokak, yapinin_bagli_oldugu_cadde_sokak, d_d, b_d, r_d, source_level = row
+    (
+        il,
+        ilce,
+        koy,
+        koy_bulma_yontemi,
+        mahalle,
+        mahalle_bulma_yontemi,
+        kapi_no,
+        bina_no,
+        en_yakin_cadde_sokak,
+        yapinin_bagli_oldugu_cadde_sokak,
+        d_d,
+        b_d,
+        r_d,
+        source_level,
+    ) = row
 
+    yerlesim = mahalle or koy
     cadde_for_adres = yapinin_bagli_oldugu_cadde_sokak or en_yakin_cadde_sokak
-    parts = [p for p in [mahalle, cadde_for_adres, bina_no, ilce, il] if p]
+    parts = [p for p in [yerlesim, cadde_for_adres, bina_no, ilce, il] if p]
     adres = ", ".join(parts) if parts else None
 
     confidence = 0.2
@@ -222,7 +261,10 @@ def _row_to_payload(row: tuple, door_radius_m: float, building_radius_m: float, 
     return {
         "il": il,
         "ilce": ilce,
+        "koy": koy,
+        "koy_bulma_yontemi": koy_bulma_yontemi,
         "mahalle": mahalle,
+        "mahalle_bulma_yontemi": mahalle_bulma_yontemi,
         "En yakin Cadde/Sokak": en_yakin_cadde_sokak,
         "Yapinin bagli oldugu Cadde/Sokak": yapinin_bagli_oldugu_cadde_sokak,
         "bina_no": bina_no,
@@ -272,7 +314,6 @@ def _parse_coord(value: object) -> float | None:
     if not text:
         return None
 
-    # Trim long coordinate strings to avoid malformed spreadsheet values.
     if len(text) > MAX_COORD_TEXT_LEN:
         text = text[:MAX_COORD_TEXT_LEN]
 
@@ -288,32 +329,119 @@ def _parse_coord(value: object) -> float | None:
         return None
 
 
-def _resolve_excel_row(
-    row_idx: int,
-    x: float | None,
-    y: float | None,
+def _try_resolve_pair(
+    lat: float,
+    lon: float,
     door_radius_m: float,
     building_radius_m: float,
     road_radius_m: float,
     metric: str,
-) -> tuple[int, str]:
-    if x is None or y is None:
-        return row_idx, "HATA: CBS_X/CBS_Y gecersiz"
-
-    if not (-180 <= x <= 180 and -90 <= y <= 90):
-        return row_idx, "HATA: Koordinat araligi gecersiz (X:-180..180, Y:-90..90)"
-
+) -> dict | None:
     try:
-        result = _resolve_one(y, x, door_radius_m, building_radius_m, road_radius_m, metric)
-        return row_idx, result.get("adres") or ""
-    except Exception as ex:
-        return row_idx, f"HATA: {ex}"
+        return _resolve_one(lat, lon, door_radius_m, building_radius_m, road_radius_m, metric)
+    except Exception:
+        return None
+
+
+def _resolve_with_coord_order(
+    x: float,
+    y: float,
+    coord_order: str,
+    door_radius_m: float,
+    building_radius_m: float,
+    road_radius_m: float,
+    metric: str,
+) -> tuple[dict | None, str]:
+    mode = coord_order.lower()
+
+    if mode == "xy":
+        if not (-180 <= x <= 180 and -90 <= y <= 90):
+            return None, "xy"
+        return _try_resolve_pair(y, x, door_radius_m, building_radius_m, road_radius_m, metric), "xy"
+
+    if mode == "yx":
+        if not (-180 <= y <= 180 and -90 <= x <= 90):
+            return None, "yx"
+        return _try_resolve_pair(x, y, door_radius_m, building_radius_m, road_radius_m, metric), "yx"
+
+    # auto: test both valid interpretations and select better confidence.
+    candidates: list[tuple[str, dict]] = []
+
+    if -180 <= x <= 180 and -90 <= y <= 90:
+        res_xy = _try_resolve_pair(y, x, door_radius_m, building_radius_m, road_radius_m, metric)
+        if res_xy:
+            candidates.append(("xy", res_xy))
+
+    if -180 <= y <= 180 and -90 <= x <= 90:
+        res_yx = _try_resolve_pair(x, y, door_radius_m, building_radius_m, road_radius_m, metric)
+        if res_yx:
+            candidates.append(("yx", res_yx))
+
+    if not candidates:
+        return None, "auto"
+
+    order, best = max(candidates, key=lambda item: float(item[1].get("confidence") or 0.0))
+    return best, order
+
+
+def _resolve_excel_row(
+    row_idx: int,
+    x: float | None,
+    y: float | None,
+    coord_order: str,
+    door_radius_m: float,
+    building_radius_m: float,
+    road_radius_m: float,
+    metric: str,
+) -> tuple[int, dict | None, str]:
+    if x is None or y is None:
+        return row_idx, None, "HATA: CBS_X/CBS_Y gecersiz"
+
+    result, used_order = _resolve_with_coord_order(
+        x,
+        y,
+        coord_order,
+        door_radius_m,
+        building_radius_m,
+        road_radius_m,
+        metric,
+    )
+
+    if not result:
+        return row_idx, None, "HATA: Koordinat cozumlenemedi (xy/yx aralik kontrolu veya sorgu sonucu)"
+
+    result["koord_duzeni"] = used_order
+    return row_idx, result, ""
 
 
 def _set_job(job_id: str, **kwargs) -> None:
     with EXCEL_JOBS_LOCK:
         if job_id in EXCEL_JOBS:
             EXCEL_JOBS[job_id].update(kwargs)
+
+
+def _write_excel_output(ws, row_idx: int, result: dict | None, error_text: str) -> None:
+    if error_text:
+        ws.cell(row=row_idx, column=4, value=error_text)
+        for c in range(5, 4 + len(EXCEL_HEADERS)):
+            ws.cell(row=row_idx, column=c, value="")
+        return
+
+    row_values = [
+        result.get("il"),
+        result.get("ilce"),
+        result.get("koy"),
+        result.get("koy_bulma_yontemi"),
+        result.get("mahalle"),
+        result.get("mahalle_bulma_yontemi"),
+        result.get("En yakin Cadde/Sokak"),
+        result.get("Yapinin bagli oldugu Cadde/Sokak"),
+        result.get("bina_no"),
+        result.get("kapi_no"),
+    ]
+
+    for i, value in enumerate(row_values, start=4):
+        ws.cell(row=row_idx, column=i, value=value)
 
 
 def _process_excel_job(
@@ -324,11 +452,14 @@ def _process_excel_job(
     road_radius_m: float,
     metric: str,
     parallel_workers: int,
+    coord_order: str,
 ) -> None:
     try:
         wb = load_workbook(BytesIO(file_bytes))
         ws = wb.active
-        ws.cell(row=1, column=4, value="adres")
+
+        for i, h in enumerate(EXCEL_HEADERS, start=4):
+            ws.cell(row=1, column=i, value=h)
 
         jobs: list[tuple[int, float | None, float | None]] = []
         for r in range(2, ws.max_row + 1):
@@ -340,7 +471,7 @@ def _process_excel_job(
         _set_job(job_id, total=total, processed=0, status="running")
 
         worker_count = max(1, min(MAX_PARALLEL_WORKERS, int(parallel_workers)))
-        row_results: list[tuple[int, str]] = []
+        row_results: list[tuple[int, dict | None, str]] = []
 
         if worker_count > 1:
             with ThreadPoolExecutor(max_workers=worker_count) as pool:
@@ -350,6 +481,7 @@ def _process_excel_job(
                         r,
                         x,
                         y,
+                        coord_order,
                         door_radius_m,
                         building_radius_m,
                         road_radius_m,
@@ -370,6 +502,7 @@ def _process_excel_job(
                         r,
                         x,
                         y,
+                        coord_order,
                         door_radius_m,
                         building_radius_m,
                         road_radius_m,
@@ -379,8 +512,8 @@ def _process_excel_job(
                 processed += 1
                 _set_job(job_id, processed=processed)
 
-        for row_idx, text in row_results:
-            ws.cell(row=row_idx, column=4, value=text)
+        for row_idx, res, err in row_results:
+            _write_excel_output(ws, row_idx, res, err)
 
         out = BytesIO()
         wb.save(out)
@@ -474,6 +607,7 @@ def reverse_geocode_excel_start(
     road_radius_m: float = Form(120.0),
     metric: Literal["geodesic", "planar"] = Form("geodesic"),
     parallel_workers: int = Form(4),
+    coord_order: Literal["auto", "xy", "yx"] = Form("auto"),
 ) -> dict:
     filename = file.filename or "input.xlsx"
     if not filename.lower().endswith(".xlsx"):
@@ -507,6 +641,7 @@ def reverse_geocode_excel_start(
             road_radius_m,
             metric,
             parallel_workers,
+            coord_order,
         ),
         daemon=True,
     )

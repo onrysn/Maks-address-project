@@ -106,7 +106,20 @@ Koordinat format kurali:
 - C (Y) araligi: `-90..90`
 - Hucre metni otomatik trimlenir ve en fazla 64 karakter dikkate alinir.
 
-API dosyayi isler, D sutununa `adres` yazar. UI tarafinda job progress (`islenen/toplam`) gorunur ve is bitince dosya indirilebilir.
+API dosyayi isler, D sutunundan itibaren su alanlari yazar:
+
+- `IL`
+- `ILCE`
+- `KOY`
+- `KOY_BULMA_YONTEMI` (`poligon_icinde` veya `en_yakin`)
+- `MAHALLE`
+- `MAHALLE_BULMA_YONTEMI` (`poligon_icinde` veya `en_yakin`)
+- `EN_YAKIN_CADDE_SOKAK`
+- `BINADAN_GELEN_CADDE_SOKAK`
+- `BINA_NO`
+- `KAPI_NO`
+
+UI tarafinda job progress (`islenen/toplam/yuzde`) gorunur ve is bitince dosya indirilebilir.
 
 ## 6) UI
 
