@@ -12,6 +12,7 @@ RAW_SCHEMA="raw_maks"
 IMPORT_MODE="${IMPORT_MODE:-all}"
 # Import behavior: overwrite (default) or append.
 IMPORT_BEHAVIOR="${IMPORT_BEHAVIOR:-overwrite}"
+CREATE_INDEXES="${CREATE_INDEXES:-1}"
 
 : "${POSTGRES_HOST:?POSTGRES_HOST is required}"
 : "${POSTGRES_PORT:?POSTGRES_PORT is required}"
@@ -115,5 +116,25 @@ for LAYER in "${LAYERS[@]}"; do
   ogr2ogr \
     "${OGR_FLAGS[@]}"
  done
+
+if [[ "$CREATE_INDEXES" == "1" ]]; then
+  echo "Creating raw_maks indexes..."
+  psql \
+    -h "$POSTGRES_HOST" \
+    -p "$POSTGRES_PORT" \
+    -U "$POSTGRES_USER" \
+    -d "$POSTGRES_DB" \
+    -v ON_ERROR_STOP=1 \
+    -f /etl/scripts/create_raw_indexes.sql
+
+  echo "Running ANALYZE on raw_maks schema..."
+  psql \
+    -h "$POSTGRES_HOST" \
+    -p "$POSTGRES_PORT" \
+    -U "$POSTGRES_USER" \
+    -d "$POSTGRES_DB" \
+    -v ON_ERROR_STOP=1 \
+    -c "ANALYZE raw_maks.il; ANALYZE raw_maks.ilce; ANALYZE raw_maks.koy; ANALYZE raw_maks.mahalle; ANALYZE raw_maks.numarataj; ANALYZE raw_maks.yapi; ANALYZE raw_maks.yolortahat; ANALYZE raw_maks.yolortahatyon; ANALYZE raw_maks.yol;"
+fi
 
 echo "Raw import complete."

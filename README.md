@@ -66,6 +66,13 @@ docker compose up -d
 
 Detayli adimlar icin: [etl/README.md](./etl/README.md)
 
+Performans notu:
+`raw_maks` tablolarinda reverse geocode icin gerekli indexler yoksa tek koordinat sorgulari belirgin yavaslar. Mevcut veri uzerine indexleri sonradan basmak icin:
+
+```bash
+docker compose run --rm etl -lc "export PGPASSWORD=\$POSTGRES_PASSWORD; psql -h \$POSTGRES_HOST -p \$POSTGRES_PORT -U \$POSTGRES_USER -d \$POSTGRES_DB -v ON_ERROR_STOP=1 -f /etl/scripts/create_raw_indexes.sql"
+```
+
 ## 4) Query bazli yakinlik parametreleri
 
 Her cagrida degistirilebilir:

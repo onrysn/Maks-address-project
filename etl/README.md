@@ -21,6 +21,7 @@ docker compose run --rm etl -lc "bash /etl/scripts/import_gdb_to_raw.sh /data/ra
 ```
 
 Yukleme hedefi: `raw_maks.*` tablolari
+Not: Import sonunda varsayilan olarak `raw_maks` icin spatial + join indexleri olusturulur ve `ANALYZE` calisir (`CREATE_INDEXES=1`).
 
 Not: Varsayilan mod `IMPORT_MODE=all` oldugu icin tum katmanlar alinir.
 Sadece temel katmanlari almak istersen:
@@ -33,6 +34,12 @@ Mevcut tablolari silmeden ekleme (append) yapmak icin:
 
 ```bash
 docker compose run --rm etl -lc "IMPORT_BEHAVIOR=append bash /etl/scripts/import_gdb_to_raw.sh /data/raw_gdb/YENI_IL.gdb"
+```
+
+Mevcut import edilmis veri icin indexleri sonradan olusturmak istersen:
+
+```bash
+docker compose run --rm etl -lc "export PGPASSWORD=\$POSTGRES_PASSWORD; psql -h \$POSTGRES_HOST -p \$POSTGRES_PORT -U \$POSTGRES_USER -d \$POSTGRES_DB -v ON_ERROR_STOP=1 -f /etl/scripts/create_raw_indexes.sql"
 ```
 
 ## 3) raw profilini JSON olarak cikar

@@ -1,5 +1,6 @@
-﻿from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 import threading
@@ -227,6 +228,12 @@ def _build_query(metric: str) -> tuple[str, str]:
     return query, pt_expr
 
 
+@lru_cache(maxsize=2)
+def _get_cached_query(metric: str) -> str:
+    query, _ = _build_query(metric)
+    return query
+
+
 def _row_to_payload(row: tuple, door_radius_m: float, building_radius_m: float, road_radius_m: float, metric: str) -> dict:
     (
         il,
@@ -287,7 +294,7 @@ def _row_to_payload(row: tuple, door_radius_m: float, building_radius_m: float, 
 
 
 def _resolve_one(lat: float, lon: float, door_radius_m: float, building_radius_m: float, road_radius_m: float, metric: str) -> dict:
-    query, _ = _build_query(metric)
+    query = _get_cached_query(metric)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
